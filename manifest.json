@@ -1,0 +1,9 @@
+{
+  "display_name": "异步资料参考",
+  "loading_order": 11,
+  "js": "index.js",
+  "author": "Limerence",
+  "version": "0.1.0",
+  "description": "在 SillyTavern 中以“异步资料参考”的名字显示，并打开独立资料参考弹窗。",
+  "auto_update": false
+}

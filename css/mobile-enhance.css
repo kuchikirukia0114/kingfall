@@ -1,0 +1,235 @@
+@media (max-width: 768px) {
+    .network-menu {
+        padding: 0 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 6px;
+        scrollbar-width: none;
+    }
+
+    .network-menu .network-menu__item {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding: 11px 16px;
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .network-menu .network-menu__item.is-active {
+        padding-top: 10px;
+        padding-bottom: 11px;
+    }
+
+    .xp-button,
+    .network-api__button,
+    .network-preset__button,
+    .network-main-chat__button,
+    .network-world-book__button {
+        min-height: 42px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 800;
+        border-radius: 10px;
+    }
+
+    .xp-button--icon,
+    .network-preset__delete-button,
+    .network-preset__move-button,
+    .network-main-chat__rule-delete,
+    .network-world-book__delete-button,
+    .network-world-book__rule-delete {
+        min-width: 42px;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        font-size: 18px;
+    }
+
+   .xp-input,
+    .network-api__input,
+    .network-preset__input,
+    .network-preset__name-input,
+    .network-main-chat__input,
+    .network-main-chat__rule-input,
+    .network-main-chat__rule-n,
+    .network-world-book__input,
+    .network-world-book__rule-input,
+    .network-world-book__rule-n,
+    .runtime-policy__select {
+        min-height: 42px;
+        padding: 8px 12px;
+        font-size: 15px;
+    }
+
+    .network-settings__title,
+    .network-api__title,
+    .network-preset__title,
+    .network-main-chat__title,
+    .network-world-book__title {
+        font-size: 24px;
+        line-height: 1.2;
+    }
+
+    .network-settings__desc,
+    .network-api__status,
+    .network-main-chat__subtitle,
+    .runtime-policy__desc,
+    .runtime-policy__row-hint,
+    .network-api__field-hint,
+    .network-api__toggle-copy small,
+    .network-main-chat__microline,
+    .network-main-chat__status,
+    .network-preset__preset-meta,
+    .network-preset__block-subtitle,
+    .network-world-book__entry-meta,
+    .network-world-book__binding-meta,
+    .network-world-book__picker-meta,
+    .network-settings__tips,
+    .network-settings__media-summary,
+    .network-settings__media-state {
+        font-size: 13px;
+        line-height: 1.65;
+    }
+
+    .network-settings__switch-label,
+    .network-settings__subsection-title,
+    .network-api__row-label,
+    .network-main-chat__row-label,
+    .network-world-book__row-label,
+    .runtime-policy__row-label,
+    .network-preset__preset-name,
+    .network-preset__block-name,
+    .network-world-book__entry-name,
+    .network-world-book__binding-name,
+    .network-world-book__picker-name {
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .network-settings__field-label,
+    .network-api__field-label,
+    .network-api__section-head span,
+    .network-main-chat__field-label,
+    .network-preset__field-label,
+    .network-preset__summary-label,
+    .network-world-book__field-label {
+        font-size: 13px;
+    }
+
+    .network-api__row-value,
+    .network-main-chat__row-value,
+    .network-world-book__row-value,
+    .network-world-book__summary-value,
+    .network-preset__row-value,
+    .network-preset__summary-value {
+        font-size: 14px;
+    }
+
+    .network-api__row,
+    .network-preset__row,
+    .network-preset__type-item,
+    .network-main-chat__row,
+    .network-world-book__row {
+        min-height: 48px;
+        padding: 10px 14px;
+    }
+
+    .network-preset__preset-item,
+    .network-preset__block-item,
+    .network-world-book__entry-item,
+    .network-world-book__binding-item,
+    .network-world-book__picker-item {
+        min-height: 52px;
+        padding: 12px 14px;
+    }
+
+    .network-preset__badge,
+    .network-settings__badge {
+        font-size: 12px;
+        min-height: 22px;
+        padding: 0 10px;
+    }
+
+    .network-preset__role-badge {
+        min-height: 28px;
+        padding: 5px 12px;
+        font-size: 12px;
+        border-radius: 8px;
+    }
+
+    .network-preset__textarea,
+    .network-main-chat__preview-text,
+    .network-world-book__preview-text {
+        font-size: 14px;
+        line-height: 1.7;
+    }
+
+    .network-main-chat__rule,
+    .network-world-book__rule,
+    .network-api__toggle-row {
+        padding: 10px;
+    }
+
+    .network-settings__section,
+    .network-api__main-panel,
+    .network-preset__main-panel,
+    .network-main-chat__main-panel,
+    .network-world-book__main-panel {
+        padding: 14px;
+    }
+
+    .network-preset__type-item {
+        min-height: 68px;
+        padding: 16px 18px;
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .network-preset__type-item,
+    .network-preset__type-item *,
+    .network-preset__type-item .network-preset__row-label,
+    .network-preset__type-item .network-preset__row-value,
+    .network-preset__type-item .network-preset__row-value-wrap,
+    .network-preset__type-item span,
+    .network-preset__type-item strong {
+        font-size: 18px !important;
+        font-weight: 800 !important;
+        line-height: 1.5;
+    }
+
+    .network-main-chat__rule-top {
+        grid-template-columns: minmax(0, 0.72fr) 42px;
+    }
+
+    .network-main-chat__rule-bottom {
+        grid-template-columns: minmax(0, 1fr) 72px;
+    }
+
+    .rd-json {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 16px;
+        z-index: 30;
+        min-height: 184px;
+        max-height: 184px;
+        margin: 0 10px;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        overflow: hidden;
+    }
+
+    .rd-json__foot {
+        min-height: 184px;
+        max-height: 184px;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto auto auto;
+        align-content: start;
+        row-gap: 8px;
+    }
+
+    .rd-page__tree-area {
+        padding-bottom: 220px;
+    }
+}

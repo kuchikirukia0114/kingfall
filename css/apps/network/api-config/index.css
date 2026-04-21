@@ -1,0 +1,330 @@
+.network-api {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0 10px 6px 10px;
+    box-sizing: border-box;
+    gap: 6px;
+    background: transparent;
+}
+
+.network-api__main-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #ffffff;
+    border: 1px solid var(--kf-border, rgba(139, 92, 246, 0.18));
+    border-radius: 0;
+    margin-top: 1px;
+    padding: 12px;
+}
+
+.network-api__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--kf-border-subtle, rgba(139, 92, 246, 0.08));
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.network-api__header-main {
+    min-width: 0;
+}
+
+.network-api__title {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.12;
+    color: var(--kf-text, #1e1b4b);
+}
+
+.network-api__status {
+    margin: 6px 0 0;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--kf-text-secondary, #475569);
+}
+
+.network-api__status.is-success {
+    color: #2f7d39;
+}
+
+.network-api__status.is-error {
+    color: #a44343;
+}
+
+.network-api__status.is-loading {
+    color: #245ba8;
+}
+
+.network-api__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.network-api__button {
+    flex: 0 0 auto;
+}
+
+.network-api__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.network-api__scroll-pane,
+.network-api__list,
+.network-api__model-list {
+    min-height: 0;
+    overflow: auto;
+}
+
+.network-api__scroll-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 2px;
+}
+
+.network-api__card {
+    border: 1px solid rgba(139, 92, 246, 0.14);
+    border-radius: var(--kf-radius, 8px);
+    background: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.network-api__card--form {
+    padding: 14px;
+}
+
+.network-api__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
+.network-api__form--split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.network-api__field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.network-api__field-label {
+    font-size: 10px;
+    color: var(--kf-text-secondary, #475569);
+}
+
+.network-api__field-hint {
+    font-size: 10px;
+    line-height: 1.5;
+    color: #6a7c90;
+}
+
+.network-api__section-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+    color: var(--kf-text, #1e1b4b);
+}
+
+.network-api__section-head span {
+    font-size: 11px;
+    color: #62758a;
+    line-height: 1.45;
+}
+
+.network-api__input {
+    width: 100%;
+}
+
+.network-api__toggle-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #d2dfef;
+    background: #f8fbff;
+}
+
+.network-api__toggle-row input[type="checkbox"] {
+    margin: 2px 0 0;
+    flex: 0 0 auto;
+}
+
+.network-api__toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--kf-text, #1e1b4b);
+}
+
+.network-api__toggle-copy strong {
+    font-size: 11px;
+}
+
+.network-api__toggle-copy small {
+    font-size: 10px;
+    line-height: 1.5;
+    color: #65788c;
+}
+
+
+.network-api__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.network-api__row {
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    gap: 10px;
+}
+
+.network-api__row-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kf-text, #1e1b4b);
+}
+
+.network-api__row-value-wrap {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.network-api__row-value {
+    max-width: 230px;
+    font-size: 11px;
+    color: #5b6d80;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.network-api__row-badge,
+.network-api__profile-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+    padding: 0 7px;
+    border: 1px solid #cad8eb;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #607286;
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.network-api__row-arrow {
+    font-size: 12px;
+    color: #6d87a6;
+}
+
+
+.network-api__empty {
+    flex: 1 1 auto;
+    min-height: 180px;
+    border: 1px dashed rgba(139, 92, 246, 0.18);
+    border-radius: var(--kf-radius, 8px);
+    background: rgba(255, 255, 255, 0.86);
+    color: var(--kf-text-muted, #94a3b8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.network-api__profile,
+.network-api__model-item {
+    cursor: pointer;
+}
+
+.network-api__profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.network-api__profile + .network-api__profile,
+.network-api__model-item + .network-api__model-item {
+    margin-top: 8px;
+}
+
+.network-api__profile-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.network-api__profile-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.network-api__profile-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kf-text, #1e1b4b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.network-api__profile-subtitle {
+    font-size: 10px;
+    color: var(--kf-text-muted, #94a3b8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.network-api__delete-button {
+    flex: 0 0 auto;
+}
+
+.network-api__model-list {
+    flex: 1 1 auto;
+}
+
+.network-api__model-item {
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.network-api__model-name {
+    display: block;
+    color: var(--kf-text, #1e1b4b);
+    font-size: 11px;
+    line-height: 1.45;
+    word-break: break-all;
+}

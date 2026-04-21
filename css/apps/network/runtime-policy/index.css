@@ -1,0 +1,66 @@
+/* 全局运行策略页面 */
+
+.runtime-policy__desc {
+    margin: 4px 0 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #62758a;
+}
+
+.runtime-policy__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.runtime-policy__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e8edf3;
+}
+
+.runtime-policy__row:last-child {
+    border-bottom: none;
+}
+
+.runtime-policy__row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.runtime-policy__row-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kf-text, #1e1b4b);
+    line-height: 1.4;
+}
+
+.runtime-policy__row-hint {
+    font-size: 10px;
+    line-height: 1.5;
+    color: #7a8d9f;
+}
+
+.runtime-policy__row-control {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+}
+
+.runtime-policy__row-control input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.runtime-policy__select {
+    min-width: 130px;
+    font-size: 11px;
+}

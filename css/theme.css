@@ -1,0 +1,82 @@
+:root {
+    /* ---- palette ---- */
+    --kf-bg: #faf9fe;
+    --kf-surface: #ffffff;
+    --kf-surface-alt: #f5f3ff;
+    --kf-border: rgba(139, 92, 246, 0.18);
+    --kf-border-strong: rgba(139, 92, 246, 0.32);
+    --kf-border-subtle: rgba(139, 92, 246, 0.08);
+    --kf-accent: #8b5cf6;
+    --kf-accent-soft: #a78bfa;
+    --kf-accent-bg: rgba(139, 92, 246, 0.06);
+    --kf-text: #1e1b4b;
+    --kf-text-secondary: #475569;
+    --kf-text-muted: #94a3b8;
+    --kf-shadow-sm: 0 1px 3px rgba(139, 92, 246, 0.06);
+    --kf-shadow-md: 0 4px 12px rgba(139, 92, 246, 0.08);
+    --kf-radius: 8px;
+    --kf-radius-lg: 12px;
+
+    /* ---- legacy compat (used by window-frame / layout) ---- */
+    --page-gradient-start: #f0ecff;
+    --page-gradient-mid: #f5f3ff;
+    --page-gradient-end: #eef2ff;
+    --panel-glass: rgba(255, 255, 255, 0.82);
+    --panel-glass-border: var(--kf-border);
+    --panel-shadow: var(--kf-shadow-md);
+    --titlebar-start: #7c3aed;
+    --titlebar-mid: #8b5cf6;
+    --titlebar-end: #a78bfa;
+    --page-text: var(--kf-text);
+
+    /* ---- override old XP vars ---- */
+    --app-frame-bg: var(--kf-bg);
+    --app-panel-bg: var(--kf-surface);
+    --app-panel-border: var(--kf-border);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Micri', sans-serif;
+}
+
+body {
+    color: var(--kf-text);
+}
+
+html,
+body,
+.window-stage,
+.standalone-network-window,
+.standalone-network-content,
+.network-page-viewport,
+.network-page,
+.network-page__canvas {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+::-webkit-scrollbar-thumb {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: transparent;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}

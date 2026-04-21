@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>异步资料参考</title>
+    <link rel="stylesheet" href="../css/apps/window-frame.css">
+    <link rel="stylesheet" href="../css/apps/network.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/mobile-enhance.css">
+</head>
+<body class="standalone-popup-body">
+    <div class="window-stage">
+        <div class="xp-window app-window app-window--network open standalone-network-window" id="networkWindow">
+            <div class="win-titlebar standalone-titlebar">
+                <div class="win-title">异步资料参考</div>
+                <div class="win-controls">
+                    <div class="win-btn close win-btn--icon" id="btnCloseNetworkStandalone" aria-label="关闭" title="关闭">
+                        <svg class="win-btn__icon win-btn__icon--close" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 6L18 18M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="win-content network-content standalone-network-content">
+                <div class="network-page-viewport" id="networkPageViewport">
+                    <div class="win-menu network-menu" id="networkMenu">
+                        <span class="network-menu__item" data-network-page="settings">设置</span>
+                        <span class="network-menu__item is-active" data-network-page="resultDesign">结构设计与查看</span>
+                        <span class="network-menu__item" data-network-page="apiConfig">API配置</span>
+                        <span class="network-menu__item" data-network-page="runtimePolicy">全局运行策略</span>
+                        <span class="network-menu__item" data-network-page="preset">预设</span>
+                        <span class="network-menu__item" data-network-page="mainChat">主聊天</span>
+                        <span class="network-menu__item" data-network-page="worldBook">世界书</span>
+                    </div>
+                    <section class="network-page network-page--settings" data-network-page-panel="settings"></section>
+                    <section class="network-page network-page--api-config" data-network-page-panel="apiConfig">
+                        <div class="standalone-loading">正在加载网络连接模块…</div>
+                    </section>
+                    <section class="network-page network-page--runtime-policy" data-network-page-panel="runtimePolicy"></section>
+                    <section class="network-page network-page--preset" data-network-page-panel="preset"></section>
+                    <section class="network-page network-page--result-design is-active" data-network-page-panel="resultDesign"></section>
+                    <section class="network-page network-page--main-chat" data-network-page-panel="mainChat"></section>
+                    <section class="network-page network-page--world-book" data-network-page-panel="worldBook"></section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/runtime.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>
