@@ -84,6 +84,9 @@ function ensureOverlayStyles() {
         #${OVERLAY_ID} {
             position: fixed;
             inset: 0;
+            width: 100vw;
+            height: 100vh;
+            min-height: 100vh;
             z-index: 2147483000;
             display: flex;
             align-items: stretch;
@@ -91,6 +94,14 @@ function ensureOverlayStyles() {
             padding: 0 16px;
             pointer-events: auto;
             background: transparent;
+            overflow: hidden;
+        }
+
+        @supports (height: 100dvh) {
+            #${OVERLAY_ID} {
+                height: 100dvh;
+                min-height: 100dvh;
+            }
         }
 
         #${OVERLAY_ID}.${OVERLAY_ID}--hidden {
@@ -98,9 +109,13 @@ function ensureOverlayStyles() {
         }
 
         #${OVERLAY_ID} .kingfall-overlay__frame {
+            display: block;
+            flex: 1 1 auto;
+            align-self: stretch;
             width: min(960px, calc(100vw - 32px));
-            height: 100%;
-            max-height: 100%;
+            height: 100vh;
+            min-height: 100vh;
+            max-height: 100vh;
             border: 0;
             background: transparent;
             pointer-events: auto;
@@ -108,6 +123,14 @@ function ensureOverlayStyles() {
             overflow: hidden;
             scrollbar-width: none;
             -ms-overflow-style: none;
+        }
+
+        @supports (height: 100dvh) {
+            #${OVERLAY_ID} .kingfall-overlay__frame {
+                height: 100dvh;
+                min-height: 100dvh;
+                max-height: 100dvh;
+            }
         }
 
         #${OVERLAY_ID} .kingfall-overlay__frame::-webkit-scrollbar {
@@ -122,7 +145,18 @@ function ensureOverlayStyles() {
 
             #${OVERLAY_ID} .kingfall-overlay__frame {
                 width: 100vw;
+                height: 100vh;
+                min-height: 100vh;
+                max-height: 100vh;
                 border-radius: 0;
+            }
+
+            @supports (height: 100dvh) {
+                #${OVERLAY_ID} .kingfall-overlay__frame {
+                    height: 100dvh;
+                    min-height: 100dvh;
+                    max-height: 100dvh;
+                }
             }
         }
     `;
