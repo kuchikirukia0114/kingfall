@@ -1135,6 +1135,24 @@
         syncJsonPaneMeta();
     }
 
+    function getTreeViewport() {
+        if (!state.root) return null;
+        return state.root.querySelector('.rd-page__tree-area');
+    }
+
+    function withPreservedTreeScroll(action) {
+        var viewport = getTreeViewport();
+        var previousScrollTop = viewport ? viewport.scrollTop : 0;
+        var previousScrollLeft = viewport ? viewport.scrollLeft : 0;
+        action();
+        var nextViewport = getTreeViewport();
+        if (!nextViewport) {
+            return;
+        }
+        nextViewport.scrollTop = previousScrollTop;
+        nextViewport.scrollLeft = previousScrollLeft;
+    }
+
     function scrollToPendingNode() {
         if (!state.root || !state.pendingScrollToNodeId) return;
         var nodeId = String(state.pendingScrollToNodeId || '').trim();
@@ -1243,7 +1261,7 @@
                     } else {
                         setSelectedParent(parentId);
                     }
-                    render();
+                    withPreservedTreeScroll(render);
                     return;
                 }
 
@@ -1252,7 +1270,7 @@
                     var wasOpen = state.expandedNodes[toggleId] === true;
                     state.expandedNodes = {};
                     if (!wasOpen) state.expandedNodes[toggleId] = true;
-                    render();
+                    withPreservedTreeScroll(render);
                 }
                 return;
             }
@@ -1299,14 +1317,14 @@
             } else {
                 setSelectedParent(mobileParentId || tid);
             }
-            render();
+            withPreservedTreeScroll(render);
             return;
         }
 
         var wasOpen2 = state.expandedNodes[tid] === true;
         state.expandedNodes = {};
         if (!wasOpen2) state.expandedNodes[tid] = true;
-        render();
+        withPreservedTreeScroll(render);
     }
 
     function handleInput(event) {

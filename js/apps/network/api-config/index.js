@@ -642,6 +642,13 @@
         }
     }
 
+    function reloadAiSettingsFromStorage() {
+        const latestSettings = getStoredAiSettings();
+        state.settings = latestSettings;
+        networkData.currentAiSettings = latestSettings;
+        return latestSettings;
+    }
+
     function notifyAiSettingsChange() {
         settingsListeners.slice().forEach((listener) => {
             try {
@@ -1794,6 +1801,7 @@
             ? { ...settings.kingfallSendButtonMedia }
             : null;
     };
+    networkData.reloadAiSettingsFromStorage = reloadAiSettingsFromStorage;
     networkData.getAiModelsEndpoint = getAiModelsEndpoint;
     networkData.getAiApiHostLabel = getAiApiHostLabel;
     networkData.getNextAiApiProfileName = getNextAiApiProfileName;

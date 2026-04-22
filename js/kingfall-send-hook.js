@@ -68,6 +68,17 @@
         return {};
     }
 
+    function getFreshSettings() {
+        if (typeof networkData.reloadAiSettingsFromStorage === 'function') {
+            try {
+                return networkData.reloadAiSettingsFromStorage();
+            } catch (error) {
+                console.warn('[Kingfall] 从存储强制刷新 API 配置失败，回退到当前内存设置。', error);
+            }
+        }
+        return getSettings();
+    }
+
     function isEnabled(settings = getSettings()) {
         return settings?.kingfallEnabled === true;
     }
@@ -558,10 +569,11 @@
 
         await ensureKingfallVariableReady();
 
+        const freshSettings = getFreshSettings();
         const runtimeSettings = typeof networkData.getAiRuntimeSettings === 'function'
-            ? networkData.getAiRuntimeSettings('default', settings)
-            : settings;
-        const messages = await buildPromptMessages(userInput, settings);
+            ? networkData.getAiRuntimeSettings('default', freshSettings)
+            : freshSettings;
+        const messages = await buildPromptMessages(userInput, freshSettings);
         const endpoint = String(runtimeSettings?.url || '').trim();
         const apiKey = String(runtimeSettings?.key || '').trim();
         const model = String(runtimeSettings?.model || '').trim();

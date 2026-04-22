@@ -678,9 +678,15 @@
                 : (Array.isArray(entry?.keysecondary)
                     ? entry.keysecondary
                     : (Array.isArray(entry?.secondary_keys) ? entry.secondary_keys : []));
+            const rawOrder = entry?.order;
+            const normalizedOrder = Number.isFinite(Number(rawOrder)) ? Number(rawOrder) : null;
+            const rawUid = entry?.uid ?? entry?.id ?? entry?.entryId;
+            const normalizedUid = Number.isFinite(Number(rawUid)) ? Number(rawUid) : null;
 
             return {
                 index: Number.isFinite(Number(entry?.index)) ? Number(entry.index) : index,
+                uid: normalizedUid,
+                order: normalizedOrder,
                 name: String(entry?.name || entry?.comment || '').trim(),
                 content: String(entry?.content || '').trim(),
                 enabled: entry?.enabled === false ? false : entry?.disable !== true,
@@ -902,6 +908,46 @@
         return contextParts.filter(Boolean).join('\n\n').trim();
     }
 
+    function getWorldBookEntrySortValue(entry, field, fallbackValue) {
+        const rawValue = entry && entry[field];
+        return Number.isFinite(Number(rawValue)) ? Number(rawValue) : fallbackValue;
+    }
+
+    function sortWorldBookEntriesForOutput(entries) {
+        return (Array.isArray(entries) ? entries.slice() : []).sort((left, right) => {
+            const leftOrder = getWorldBookEntrySortValue(left, 'order', Number.POSITIVE_INFINITY);
+            const rightOrder = getWorldBookEntrySortValue(right, 'order', Number.POSITIVE_INFINITY);
+            if (leftOrder !== rightOrder) {
+                return leftOrder - rightOrder;
+            }
+
+            const leftUid = getWorldBookEntrySortValue(left, 'uid', Number.POSITIVE_INFINITY);
+            const rightUid = getWorldBookEntrySortValue(right, 'uid', Number.POSITIVE_INFINITY);
+            if (leftUid !== rightUid) {
+                return leftUid - rightUid;
+            }
+
+            const leftIndex = getWorldBookEntrySortValue(left, 'index', Number.POSITIVE_INFINITY);
+            const rightIndex = getWorldBookEntrySortValue(right, 'index', Number.POSITIVE_INFINITY);
+            return leftIndex - rightIndex;
+        });
+    }
+
+    function formatTriggeredWorldBookEntryPreviewLine(worldBookEntry) {
+        const matchedEntryName = String(worldBookEntry?.name || '').trim();
+        const matchedEntryContent = String(worldBookEntry?.content || '').trim();
+        const orderText = Number.isFinite(Number(worldBookEntry?.order)) ? String(Number(worldBookEntry.order)) : '-';
+        const uidText = Number.isFinite(Number(worldBookEntry?.uid)) ? String(Number(worldBookEntry.uid)) : '-';
+        const prefix = `[order:${orderText} uid:${uidText}] `;
+        return matchedEntryName
+            ? `${prefix}${matchedEntryName}：${matchedEntryContent}`
+            : `${prefix}${matchedEntryContent}`;
+    }
+
+    function formatTriggeredWorldBookEntryPromptLine(worldBookEntry) {
+        return String(worldBookEntry?.content || '').trim();
+    }
+
     async function buildWorldBookTriggerText(entry = null, settingsSource = getSettings()) {
         const entryName = String(entry?.name || '').trim();
         if (!entryName) {
@@ -921,9 +967,9 @@
         }
 
         const worldBookEntries = Array.isArray(result.worldBook.entries) ? result.worldBook.entries : [];
-        const matchedEntries = worldBookEntries
-            .filter((worldBookEntry) => isWorldBookEntryTriggered(worldBookEntry, contextText))
-            .slice(0, 20);
+        const matchedEntries = sortWorldBookEntriesForOutput(
+            worldBookEntries.filter((worldBookEntry) => isWorldBookEntryTriggered(worldBookEntry, contextText))
+        ).slice(0, 20);
 
         if (!matchedEntries.length) {
             return '';
@@ -931,11 +977,7 @@
 
         return [
             `世界书触发：${result.worldBook.name || entryName}`,
-            ...matchedEntries.map((worldBookEntry) => {
-                const matchedEntryName = String(worldBookEntry?.name || '').trim();
-                const matchedEntryContent = String(worldBookEntry?.content || '').trim();
-                return matchedEntryName ? `${matchedEntryName}：${matchedEntryContent}` : matchedEntryContent;
-            }),
+            ...matchedEntries.map(formatTriggeredWorldBookEntryPromptLine).filter(Boolean),
         ].filter(Boolean).join('\n');
     }
 
@@ -978,9 +1020,9 @@
             }
 
             const worldBookEntries = Array.isArray(result.worldBook.entries) ? result.worldBook.entries : [];
-            const matchedEntries = worldBookEntries
-                .filter((worldBookEntry) => isWorldBookEntryTriggered(worldBookEntry, contextText))
-                .slice(0, 20);
+            const matchedEntries = sortWorldBookEntriesForOutput(
+                worldBookEntries.filter((worldBookEntry) => isWorldBookEntryTriggered(worldBookEntry, contextText))
+            ).slice(0, 20);
 
             if (!matchedEntries.length) {
                 state.triggeredPreviewStatus = '暂无触发内容';
@@ -992,11 +1034,7 @@
 
             state.triggeredPreviewText = [
                 `世界书触发：${result.worldBook.name || entryName}`,
-                ...matchedEntries.map((worldBookEntry) => {
-                    const matchedEntryName = String(worldBookEntry?.name || '').trim();
-                    const matchedEntryContent = String(worldBookEntry?.content || '').trim();
-                    return matchedEntryName ? `${matchedEntryName}：${matchedEntryContent}` : matchedEntryContent;
-                }),
+                ...matchedEntries.map(formatTriggeredWorldBookEntryPreviewLine),
             ].filter(Boolean).join('\n');
             state.triggeredPreviewStatus = `已触发 ${matchedEntries.length} 条`;
         } catch (error) {

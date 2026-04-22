@@ -1282,14 +1282,10 @@
             return '暂无内容';
         }
 
-        return messages.map((message, index) => {
-            const role = String(message && message.role || '').trim();
-            const roleLabel = role === 'system'
-                ? '系统'
-                : (role === 'user' ? '用户' : (role === 'assistant' ? 'AI' : (role || '消息')));
-            const content = String(message && message.content || '').trim() || '（空）';
-            return `【${index + 1} / ${roleLabel}】\n${content}`;
-        }).join('\n\n');
+        return messages
+            .map((message) => String(message && message.content || '').trim())
+            .filter(Boolean)
+            .join('\n\n');
     }
 
     async function openPresetPreview(options = {}) {
