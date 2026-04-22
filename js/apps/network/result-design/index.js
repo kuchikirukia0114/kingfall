@@ -138,7 +138,7 @@
                     continue;
                 }
                 const context = candidate.SillyTavern.getContext();
-                if (context && context.eventSource && context.event_types) {
+                if (context && (context.eventSource || context.variables || context.event_types)) {
                     return {
                         hostWindow: candidate,
                         context,
@@ -147,6 +147,18 @@
             } catch (error) {}
         }
         return null;
+    }
+
+    function getLocalVariableAccessor() {
+        var hostInfo = getSillyTavernContextHost();
+        var localVariables = hostInfo?.context?.variables?.local;
+        if (!localVariables) {
+            return null;
+        }
+        if (typeof localVariables.get !== 'function' || typeof localVariables.set !== 'function') {
+            return null;
+        }
+        return localVariables;
     }
 
     function isMobileView() {
@@ -313,28 +325,181 @@
     }
 
     async function readKingfallVariableText() {
+        const localVariables = getLocalVariableAccessor();
+        if (localVariables?.get) {
+            try {
+                return String(await Promise.resolve(localVariables.get(VARIABLE_NAME)) ?? '').trim();
+            } catch (error) {}
+        }
+
         const stApi = getSTAPI();
-        if (!stApi?.variables?.get) {
+        if (stApi?.variables?.get) {
+            try {
+                const result = await stApi.variables.get({ name: VARIABLE_NAME, scope: 'local' });
+                return String(result?.value ?? '').trim();
+            } catch (error) {}
+        }
+
+        return '';
+    }
+
+    function isLikelyWrappedKingfallPayload(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return false;
+        }
+        return Array.isArray(value.operations) || Object.prototype.hasOwnProperty.call(value, 'reply');
+    }
+
+    function safeJsonParse(text) {
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function summarizeKingfallVariableText(text) {
+        var normalizedText = String(text == null ? '' : text);
+        var trimmedText = normalizedText.trim();
+        var parsed = safeJsonParse(trimmedText);
+        var keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? Object.keys(parsed).slice(0, 8)
+            : [];
+        return {
+            length: trimmedText.length,
+            preview: trimmedText.slice(0, 300),
+            keys: keys,
+            hasOperations: !!(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'operations')),
+            hasReply: !!(parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'reply')),
+        };
+    }
+
+    function logKingfallVariableTrace(stage, payload) {
+        try {
+            console.warn('[kingfall/result-design][trace:' + String(stage || 'unknown') + ']', payload || {});
+        } catch (error) {}
+    }
+
+    async function traceKingfallVariableSnapshot(stage, extra) {
+        var text = '';
+        try {
+            text = await readKingfallVariableText();
+        } catch (error) {
+            logKingfallVariableTrace(stage, Object.assign({
+                readFailed: true,
+                error: error?.message || String(error || ''),
+            }, extra || {}));
             return '';
         }
-        const result = await stApi.variables.get({ name: VARIABLE_NAME });
-        return String(result?.value ?? '').trim();
+        logKingfallVariableTrace(stage, Object.assign({
+            value: summarizeKingfallVariableText(text),
+        }, extra || {}));
+        return text;
     }
 
-    async function writeKingfallVariableText(value) {
-        const stApi = getSTAPI();
-        if (!stApi?.variables?.set) {
-            throw new Error('当前环境缺少 ST_API.variables.set');
+    async function assertKingfallVariableIntegrity(expectedValue, reason) {
+        var expectedText = String(expectedValue == null ? '' : expectedValue).trim();
+        if (!expectedText) {
+            return '';
         }
-        const nextValue = String(value == null ? '' : value);
-        await stApi.variables.set({ name: VARIABLE_NAME, value: nextValue });
-        return nextValue;
+
+        var actualText = '';
+        try {
+            actualText = await readKingfallVariableText();
+        } catch (error) {
+            console.warn('[kingfall/result-design] 写入后回读 Kingfall 变量失败。', error);
+            return expectedText;
+        }
+
+        if (!actualText) {
+            console.warn('[kingfall/result-design] Kingfall 变量写入后为空，准备自动修复。', { reason: reason || 'unknown' });
+            await forceRewriteKingfallVariable(expectedText, reason || 'empty-after-write');
+            return expectedText;
+        }
+
+        if (actualText === expectedText) {
+            return actualText;
+        }
+
+        var parsedActual = safeJsonParse(actualText);
+        if (isLikelyWrappedKingfallPayload(parsedActual)) {
+            console.warn('[kingfall/result-design] 检测到 Kingfall 变量被包装成 operations/reply 结构，准备自动修复。', {
+                reason: reason || 'wrapped-after-write',
+                actual: parsedActual,
+            });
+            await forceRewriteKingfallVariable(expectedText, reason || 'wrapped-after-write');
+            return expectedText;
+        }
+
+        console.warn('[kingfall/result-design] Kingfall 变量写入后与期望不一致。', {
+            reason: reason || 'mismatch-after-write',
+            expected: expectedText,
+            actual: actualText,
+        });
+        return actualText;
     }
 
-    async function syncKingfallVariableFromResultDesign(tree) {
+    async function forceRewriteKingfallVariable(value, reason) {
+        const nextValue = String(value == null ? '' : value);
+        const localVariables = getLocalVariableAccessor();
+        if (localVariables?.set) {
+            await Promise.resolve(localVariables.set(VARIABLE_NAME, nextValue));
+            console.warn('[kingfall/result-design] 已使用 context.variables.local.set 强制修复 Kingfall 变量。', { reason: reason || 'unknown' });
+            return nextValue;
+        }
+
+        const stApi = getSTAPI();
+        if (stApi?.variables?.set) {
+            await stApi.variables.set({ name: VARIABLE_NAME, value: nextValue, scope: 'local' });
+            console.warn('[kingfall/result-design] 已使用 ST_API.variables.set 强制修复 Kingfall 变量。', { reason: reason || 'unknown' });
+            return nextValue;
+        }
+
+        throw new Error('当前环境缺少可用的当前聊天变量强制修复接口');
+    }
+
+    async function writeKingfallVariableText(value, options) {
+        const nextValue = String(value == null ? '' : value);
+        const writeReason = String(options?.reason || 'direct-write').trim() || 'direct-write';
+
+        logKingfallVariableTrace('before-write', {
+            reason: writeReason,
+            expected: summarizeKingfallVariableText(nextValue),
+        });
+
+        const localVariables = getLocalVariableAccessor();
+        if (localVariables?.set) {
+            await Promise.resolve(localVariables.set(VARIABLE_NAME, nextValue));
+            const verifiedText = await assertKingfallVariableIntegrity(nextValue, writeReason);
+            await traceKingfallVariableSnapshot('after-write', {
+                reason: writeReason,
+                channel: 'context.variables.local.set',
+                expected: summarizeKingfallVariableText(nextValue),
+                actual: summarizeKingfallVariableText(verifiedText),
+            });
+            return verifiedText;
+        }
+
+        const stApi = getSTAPI();
+        if (stApi?.variables?.set) {
+            await stApi.variables.set({ name: VARIABLE_NAME, value: nextValue, scope: 'local' });
+            const verifiedText = await assertKingfallVariableIntegrity(nextValue, writeReason);
+            await traceKingfallVariableSnapshot('after-write', {
+                reason: writeReason,
+                channel: 'ST_API.variables.set',
+                expected: summarizeKingfallVariableText(nextValue),
+                actual: summarizeKingfallVariableText(verifiedText),
+            });
+            return verifiedText;
+        }
+
+        throw new Error('当前环境缺少可用的当前聊天变量写入接口');
+    }
+
+    async function syncKingfallVariableFromResultDesign(tree, options) {
         const sourceTree = tree ? cloneResultDesignTree(tree) : getResultDesignTree();
         const jsonText = getResultDesignJsonText(sourceTree);
-        await writeKingfallVariableText(jsonText);
+        await writeKingfallVariableText(jsonText, { reason: options?.reason || 'result-design-sync' });
         return jsonText;
     }
 
@@ -352,7 +517,7 @@
 
         if (!variableText) {
             try {
-                await writeKingfallVariableText(fallbackText);
+                await writeKingfallVariableText(fallbackText, { reason: 'ensure-empty-init' });
             } catch (error) {
                 console.warn('[kingfall/result-design] 初始化 Kingfall 变量失败。', error);
             }
@@ -369,7 +534,7 @@
         } catch (error) {
             console.warn('[kingfall/result-design] 当前聊天的 Kingfall 变量不是结构 JSON，已回退为已保存结构。', error);
             try {
-                await writeKingfallVariableText(fallbackText);
+                await writeKingfallVariableText(fallbackText, { reason: 'ensure-invalid-repair' });
             } catch (writeError) {
                 console.warn('[kingfall/result-design] 回写 Kingfall 变量失败。', writeError);
             }
@@ -581,7 +746,7 @@
                 state.pendingScrollToNodeId = lastTouchedNodeId;
             }
             updateResultDesignTree(tree);
-            syncKingfallVariableFromResultDesign(tree).catch(function (error) {
+            syncKingfallVariableFromResultDesign(tree, { reason: 'ai-operations-apply' }).catch(function (error) {
                 console.warn('[kingfall/result-design] AI 更新后同步 Kingfall 变量失败。', error);
             });
         }
@@ -700,7 +865,7 @@
         syncJsonPaneMeta();
 
         try {
-            await syncKingfallVariableFromResultDesign(tree);
+            await syncKingfallVariableFromResultDesign(tree, { reason: 'manual-save' });
             updateResultDesignTree(tree);
             syncDraftFromSaved(Object.assign({}, getSettings(), { resultDesignTree: tree }));
             markStatus('已保存，当前聊天已同步。', 'success');
@@ -719,6 +884,97 @@
         syncDraftFromSaved(getSettings());
         markStatus('已恢复到上一次保存状态，当前聊天已同步。', 'neutral');
         render();
+    }
+
+    function buildJsonExportFileName() {
+        var now = new Date();
+        var year = String(now.getFullYear());
+        var month = String(now.getMonth() + 1).padStart(2, '0');
+        var day = String(now.getDate()).padStart(2, '0');
+        var hour = String(now.getHours()).padStart(2, '0');
+        var minute = String(now.getMinutes()).padStart(2, '0');
+        var second = String(now.getSeconds()).padStart(2, '0');
+        return 'Kingfall结构-' + year + month + day + '-' + hour + minute + second + '.json';
+    }
+
+    function exportDraftJson() {
+        try {
+            var jsonText = getResultDesignJsonText(getWorkingTree());
+            var blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+            var objectUrl = URL.createObjectURL(blob);
+            var anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = buildJsonExportFileName();
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(objectUrl);
+            markStatus('已导出当前JSON。', 'success');
+            syncJsonPaneMeta();
+        } catch (error) {
+            console.error('[kingfall/result-design] 导出 JSON 失败。', error);
+            markStatus('导出失败：' + (error?.message || '未知错误'), 'danger');
+            syncJsonPaneMeta();
+        }
+    }
+
+    function triggerJsonImport() {
+        if (!state.root || state.isSaving) {
+            return;
+        }
+        var fileInput = state.root.querySelector('[data-result-import-input="json"]');
+        if (!fileInput) {
+            return;
+        }
+        fileInput.value = '';
+        fileInput.click();
+    }
+
+    function readImportFileAsText(file) {
+        if (file && typeof file.text === 'function') {
+            return file.text();
+        }
+
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () {
+                resolve(String(reader.result || ''));
+            };
+            reader.onerror = function () {
+                reject(reader.error || new Error('读取文件失败'));
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    async function importDraftJsonFile(file) {
+        if (!file) {
+            return;
+        }
+
+        try {
+            var text = String(await readImportFileAsText(file) || '').trim();
+            if (!text) {
+                throw new Error('JSON 内容为空');
+            }
+            var payload = JSON.parse(text);
+            if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+                throw new Error('JSON 顶层必须是对象');
+            }
+            var nextTree = parseResultDesignJsonToTree(payload);
+            setWorkingTree(nextTree);
+            state.expandedNodes = {};
+            state.pendingScrollToNodeId = nextTree[0]?.id || '';
+            clearSelection();
+            closeMobileEditorModal();
+            markStatus('已导入JSON，请保存以同步到当前聊天。', 'warning');
+            render();
+        } catch (error) {
+            console.error('[kingfall/result-design] 导入 JSON 失败。', error);
+            markStatus('导入失败：' + (error?.message || '未知错误'), 'danger');
+            syncJsonPaneMeta();
+        }
     }
 
     /* --- render helpers --- */
@@ -937,9 +1193,12 @@
                             '<div class="rd-json__status is-' + escapeHtml(state.statusTone || 'neutral') + '">' + escapeHtml(resolveStatusText(hasUnsaved)) + '</div>' +
                         '</div>' +
                         '<div class="rd-json__actions">' +
+                            '<button class="rd-json__button rd-json__button--ghost" type="button" data-result-action="import-json" ' + (state.isSaving ? 'disabled' : '') + '>导入</button>' +
+                            '<button class="rd-json__button rd-json__button--ghost" type="button" data-result-action="export-json">导出</button>' +
                             '<button class="rd-json__button rd-json__button--ghost" type="button" data-result-action="restore-tree" ' + ((state.isSaving || !hasUnsaved) ? 'disabled' : '') + '>恢复</button>' +
                             '<button class="rd-json__button rd-json__button--primary" type="button" data-result-action="save-tree" ' + ((state.isSaving || !hasUnsaved) ? 'disabled' : '') + '>' + (state.isSaving ? '保存中…' : '保存') + '</button>' +
                         '</div>' +
+                        '<input class="rd-json__file-input" type="file" accept=".json,application/json" data-result-import-input="json">' +
                     '</div>' +
                 '</div>' +
                 renderMobileEditorModal() +
@@ -1001,6 +1260,8 @@
             if (action === 'delete-parent') { deleteParentNode(parentId); return; }
             if (action === 'add-child') { addChildNode(parentId); return; }
             if (action === 'delete-child') { deleteChildNode(parentId, childId); return; }
+            if (action === 'import-json') { triggerJsonImport(); return; }
+            if (action === 'export-json') { exportDraftJson(); return; }
             if (action === 'save-tree') { saveDraftTree(); return; }
             if (action === 'restore-tree') { restoreDraftTree(); return; }
             if (action === 'mobile-add') { addNodeFromMobileAction(); return; }
@@ -1085,10 +1346,22 @@
         }
     }
 
+    async function handleChange(event) {
+        var target = event.target;
+        if (!target || typeof target.getAttribute !== 'function') return;
+        var importType = String(target.getAttribute('data-result-import-input') || '').trim();
+        if (importType === 'json') {
+            var file = target.files && target.files[0] ? target.files[0] : null;
+            target.value = '';
+            await importDraftJsonFile(file);
+        }
+    }
+
     function bindEvents() {
         if (!state.root || state.isBound) return;
         state.root.addEventListener('click', handleClick);
         state.root.addEventListener('input', handleInput);
+        state.root.addEventListener('change', handleChange);
         state.isBound = true;
     }
 
@@ -1117,6 +1390,9 @@
     networkData.getResultDesignJson = buildResultDesignJson;
     networkData.getResultDesignJsonText = getResultDesignJsonText;
     networkData.applyResultDesignOperations = applyResultDesignOperations;
+    networkData.readKingfallVariableText = readKingfallVariableText;
+    networkData.writeKingfallVariableText = writeKingfallVariableText;
+    networkData.traceKingfallVariableSnapshot = traceKingfallVariableSnapshot;
     networkData.syncKingfallVariableFromResultDesign = syncKingfallVariableFromResultDesign;
     networkData.ensureCurrentChatKingfallStateReady = ensureCurrentChatKingfallStateReady;
     networkData.parseResultDesignJsonText = parseResultDesignJsonText;

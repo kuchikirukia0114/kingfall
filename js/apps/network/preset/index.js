@@ -1177,7 +1177,7 @@
             try {
                 const stApi = getSTAPI();
                 if (stApi?.variables?.get) {
-                    const result = await stApi.variables.get({ name: 'Kingfall' });
+                    const result = await stApi.variables.get({ name: 'Kingfall', scope: 'local' });
                     return String(result?.value ?? '').trim();
                 }
             } catch (error) {}

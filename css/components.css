@@ -744,6 +744,11 @@
     background: rgba(139, 92, 246, 0.18);
 }
 
+.rd-json__file-input {
+    display: none;
+}
+
+
 @media (max-width: 768px) {
     .rd-page {
         grid-template-columns: minmax(0, 1fr);
@@ -843,6 +848,7 @@
     .rd-json__actions {
         width: 100%;
         justify-content: flex-end;
+        flex-wrap: wrap;
         order: 3;
     }
 

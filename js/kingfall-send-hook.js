@@ -113,7 +113,21 @@
         return null;
     }
 
-    function setInputProcessingState(active) {
+    function dispatchInputMutationEvents(inputElement) {
+        if (!inputElement || typeof inputElement.dispatchEvent !== 'function') {
+            return;
+        }
+
+        try {
+            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (error) {}
+
+        try {
+            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (error) {}
+    }
+
+    function setInputProcessingState(active, options = {}) {
         if (active) {
             const inputElement = getCurrentInputElement();
             if (!inputElement) {
@@ -156,10 +170,17 @@
             return;
         }
 
+        const restoreValue = options?.restoreValue !== false;
+        const nextValue = typeof options?.nextValue === 'string' ? options.nextValue : null;
+
         try {
             snapshot.element.readOnly = snapshot.readOnly;
             snapshot.element.disabled = snapshot.disabled;
-            snapshot.element.value = snapshot.value;
+            if (restoreValue) {
+                snapshot.element.value = snapshot.value;
+            } else if (nextValue !== null) {
+                snapshot.element.value = nextValue;
+            }
             snapshot.element.setAttribute('placeholder', snapshot.placeholder);
             snapshot.element.style.backgroundColor = snapshot.backgroundColor;
             snapshot.element.style.color = snapshot.color;
@@ -168,6 +189,9 @@
             snapshot.element.style.cursor = snapshot.cursor;
             snapshot.element.style.transition = snapshot.transition;
             snapshot.element.removeAttribute('aria-busy');
+            if (restoreValue || nextValue !== null) {
+                dispatchInputMutationEvents(snapshot.element);
+            }
         } catch (error) {}
 
         state.inputVisualState = null;
@@ -489,15 +513,14 @@
 
     async function ensureKingfallVariableReady() {
         const stApi = getSTAPI();
-        if (!stApi?.variables?.get || !stApi?.variables?.set) {
-            return '';
-        }
 
         try {
-            const existing = await stApi.variables.get({ name: VARIABLE_NAME });
-            const currentValue = String(existing?.value ?? '').trim();
-            if (currentValue) {
-                return currentValue;
+            if (typeof networkData.readKingfallVariableText === 'function') {
+                return String(await networkData.readKingfallVariableText() || '').trim();
+            }
+            if (stApi?.variables?.get) {
+                const existing = await stApi.variables.get({ name: VARIABLE_NAME, scope: 'local' });
+                return String(existing?.value ?? '').trim();
             }
         } catch (error) {}
 
@@ -514,7 +537,16 @@
             fallbackText = String(networkData.getResultDesignJsonText() || '').trim();
         }
 
-        await stApi.variables.set({ name: VARIABLE_NAME, value: fallbackText });
+        if (typeof networkData.writeKingfallVariableText === 'function') {
+            await networkData.writeKingfallVariableText(fallbackText, { reason: 'ensure-variable-ready-fallback' });
+            return fallbackText;
+        }
+
+        if (!stApi?.variables?.set) {
+            return fallbackText;
+        }
+
+        await stApi.variables.set({ name: VARIABLE_NAME, value: fallbackText, scope: 'local' });
         return fallbackText;
     }
 
@@ -621,17 +653,21 @@
                 }
             }
 
-            if (typeof networkData.syncKingfallVariableFromResultDesign === 'function') {
+            if (!appliedTree && typeof networkData.syncKingfallVariableFromResultDesign === 'function') {
                 try {
-                    await networkData.syncKingfallVariableFromResultDesign(appliedTree || undefined);
+                    await networkData.syncKingfallVariableFromResultDesign(undefined, { reason: 'send-hook-no-apply-result-sync' });
                 } catch (error) {
-                    console.warn('[network-shortcut/Kingfall] 回写 Kingfall 结构 JSON 失败。', error);
+                    console.warn('[network-shortcut/Kingfall] 无 applyResult 时回写 Kingfall 结构 JSON 失败。', error);
                 }
-            } else {
+            } else if (!appliedTree) {
                 const fallbackJsonText = typeof networkData.getResultDesignJsonText === 'function'
-                    ? String(networkData.getResultDesignJsonText(appliedTree || undefined) || '').trim()
+                    ? String(networkData.getResultDesignJsonText() || '').trim()
                     : '';
-                await stApi.variables.set({ name: VARIABLE_NAME, value: fallbackJsonText });
+                if (typeof networkData.writeKingfallVariableText === 'function') {
+                    await networkData.writeKingfallVariableText(fallbackJsonText, { reason: 'send-hook-no-apply-result-fallback-sync' });
+                } else {
+                    await stApi.variables.set({ name: VARIABLE_NAME, value: fallbackJsonText, scope: 'local' });
+                }
             }
 
             return replyText;
@@ -661,16 +697,45 @@
         void busy;
     }
 
-    async function bypassAndSend(target) {
+    function prepareInputForNativeSend(inputText) {
+        const inputElement = getCurrentInputElement();
+        if (!inputElement) {
+            return null;
+        }
+
+        inputElement.readOnly = false;
+        inputElement.disabled = false;
+        inputElement.value = String(inputText || '');
+        inputElement.removeAttribute('aria-busy');
+        dispatchInputMutationEvents(inputElement);
+        return inputElement;
+    }
+
+    async function bypassAndSend(target, inputText) {
         const stApi = getSTAPI();
         if (!stApi?.hooks?.bypassOnce) {
             throw new Error('当前环境缺少 ST_API.hooks.bypassOnce');
         }
 
         await stApi.hooks.bypassOnce({ id: HOOK_ID, target });
+        const inputElement = prepareInputForNativeSend(inputText);
+
+        const sendButton = getCurrentSendButtonElement();
+        if (sendButton) {
+            try {
+                sendButton.disabled = false;
+                sendButton.removeAttribute('disabled');
+                sendButton.removeAttribute('aria-busy');
+            } catch (error) {}
+        }
+
+        if (inputElement) {
+            try {
+                inputElement.focus();
+            } catch (error) {}
+        }
 
         if (target === 'sendEnter') {
-            const inputElement = getCurrentInputElement();
             if (inputElement) {
                 const keyboardEvent = new KeyboardEvent('keydown', {
                     key: 'Enter',
@@ -683,10 +748,30 @@
             }
         }
 
-        const sendButton = getCurrentSendButtonElement();
         if (sendButton) {
-            sendButton.click();
-            return;
+            try {
+                if (typeof sendButton.focus === 'function') {
+                    sendButton.focus();
+                }
+            } catch (error) {}
+
+            try {
+                sendButton.click();
+                return;
+            } catch (error) {
+                console.warn('[Kingfall] 发送按钮 click 放行失败，尝试原生 MouseEvent。', error);
+            }
+
+            try {
+                sendButton.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: sendButton.ownerDocument?.defaultView || window,
+                }));
+                return;
+            } catch (error) {
+                console.warn('[Kingfall] 发送按钮 MouseEvent 放行失败。', error);
+            }
         }
 
         throw new Error('未找到酒馆发送按钮');
@@ -730,6 +815,7 @@
 
         state.running = true;
         state.cancelRequested = false;
+        let handedOffToNativeSend = false;
         setInputProcessingState(true);
         await setSendButtonProcessingState(true, settings);
         await setBusy(true);
@@ -747,12 +833,54 @@
             }
 
             if (shouldBypassAndSend && !state.cancelRequested) {
-                await bypassAndSend(target);
+                if (typeof networkData.traceKingfallVariableSnapshot === 'function') {
+                    await networkData.traceKingfallVariableSnapshot('before-bypass-send', {
+                        reason: 'pre-native-send',
+                        target,
+                    });
+                }
+                await bypassAndSend(target, userInput);
+                handedOffToNativeSend = true;
+                if (typeof networkData.traceKingfallVariableSnapshot === 'function') {
+                    window.setTimeout(() => {
+                        networkData.traceKingfallVariableSnapshot('after-bypass-send-0ms', {
+                            reason: 'post-native-send',
+                            delayMs: 0,
+                            target,
+                        }).catch((error) => {
+                            console.warn('[Kingfall] 0ms 延迟回读 Kingfall 变量失败。', error);
+                        });
+                    }, 0);
+                    window.setTimeout(() => {
+                        networkData.traceKingfallVariableSnapshot('after-bypass-send-50ms', {
+                            reason: 'post-native-send',
+                            delayMs: 50,
+                            target,
+                        }).catch((error) => {
+                            console.warn('[Kingfall] 50ms 延迟回读 Kingfall 变量失败。', error);
+                        });
+                    }, 50);
+                    window.setTimeout(() => {
+                        networkData.traceKingfallVariableSnapshot('after-bypass-send-200ms', {
+                            reason: 'post-native-send',
+                            delayMs: 200,
+                            target,
+                        }).catch((error) => {
+                            console.warn('[Kingfall] 200ms 延迟回读 Kingfall 变量失败。', error);
+                        });
+                    }, 200);
+                }
             }
         } finally {
             await setBusy(false);
             setSendButtonProcessingState(false);
-            setInputProcessingState(false);
+            if (handedOffToNativeSend) {
+                window.setTimeout(() => {
+                    setInputProcessingState(false, { restoreValue: false });
+                }, 0);
+            } else {
+                setInputProcessingState(false);
+            }
             state.fetchAbortController = null;
             state.cancelRequested = false;
             state.running = false;
