@@ -47,6 +47,7 @@
 
         return {
             kingfallEnabled: false,
+            kingfallContinueSendOnError: true,
             kingfallProcessingPlaceholderText: DEFAULT_PLACEHOLDER_TEXT,
             kingfallSendButtonMedia: null,
         };
@@ -68,6 +69,10 @@
     function getPlaceholderText(settings = getSettings()) {
         const value = String(settings?.kingfallProcessingPlaceholderText || '').trim();
         return value || DEFAULT_PLACEHOLDER_TEXT;
+    }
+
+    function shouldContinueSendOnError(settings = getSettings()) {
+        return settings?.kingfallContinueSendOnError !== false;
     }
 
     function getSendButtonMediaMeta(settings = getSettings()) {
@@ -229,6 +234,7 @@
 
         const settings = getSettings();
         const enabled = isKingfallEnabled(settings);
+        const continueSendOnError = shouldContinueSendOnError(settings);
         const statusText = enabled ? '已开启' : '未开启';
         const hintText = enabled
             ? '当前会在用户点击发送时先执行 Kingfall 处理，再放行原消息。'
@@ -258,6 +264,14 @@
                         </span>
                     </label>
 
+                    <label class="network-settings__switch-row">
+                        <span class="network-settings__switch-label">报错时继续放行用户输入</span>
+                        <span class="network-settings__switch">
+                            <input class="network-settings__switch-input" type="checkbox" data-settings-field="kingfallContinueSendOnError" ${continueSendOnError ? 'checked' : ''}>
+                            <span class="network-settings__switch-slider" aria-hidden="true"></span>
+                        </span>
+                    </label>
+
                     <div class="network-settings__subsection">
                         <div class="network-settings__subsection-title">异步时输入框占位文本</div>
                         <label class="network-settings__field-group">
@@ -283,7 +297,7 @@
 
                     <div class="network-settings__tips">
                         <div>变量名：<code>Kingfall</code></div>
-                        <div>失败策略：失败也照常发送</div>
+                        <div>失败策略：${continueSendOnError ? '报错后继续放行发送' : '报错后中止放行发送'}</div>
                         <div>当前状态：${escapeHtml(hintText)}</div>
                     </div>
                 </div>
@@ -349,6 +363,14 @@
             setSettings({
                 ...getSettings(),
                 kingfallEnabled: target.checked === true,
+            });
+            return;
+        }
+
+        if (field === 'kingfallContinueSendOnError') {
+            setSettings({
+                ...getSettings(),
+                kingfallContinueSendOnError: target.checked === true,
             });
             return;
         }

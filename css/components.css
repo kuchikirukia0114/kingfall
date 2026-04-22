@@ -752,14 +752,43 @@
 @media (max-width: 768px) {
     .rd-page {
         grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+        overflow-x: hidden;
+    }
+
+    .network-page__canvas--result-design {
+        min-width: 0;
+        overflow: hidden;
     }
 
     .rd-page__tree-area {
         padding: 18px 12px 88px;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .rd-tree {
+        min-width: max-content;
+        padding-right: 8px;
     }
 
     .rd-node {
         max-width: min(78vw, 280px);
+    }
+
+    .rd-node__head {
+        min-width: 0;
+    }
+
+    .rd-node__name,
+    .rd-node__sub {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .rd-node.is-selected {

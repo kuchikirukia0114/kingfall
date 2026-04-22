@@ -1300,9 +1300,16 @@
 
         var nodeEl = closestNode(event.target, state.root);
         if (!nodeEl) return;
-        if (nodeEl.classList.contains('rd-node--root')) return;
         if (closestWithAttr(event.target, 'data-result-parent-field', state.root)) return;
         if (closestWithAttr(event.target, 'data-result-child-field', state.root)) return;
+
+        if (nodeEl.classList.contains('rd-node--root')) {
+            if (isMobileView()) {
+                clearSelection();
+                withPreservedTreeScroll(render);
+            }
+            return;
+        }
 
         var head = nodeEl.querySelector('.rd-node__head[data-result-toggle-id]');
         if (!head) return;

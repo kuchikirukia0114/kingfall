@@ -83,6 +83,10 @@
         return settings?.kingfallEnabled === true;
     }
 
+    function shouldContinueSendOnError(settings = getSettings()) {
+        return settings?.kingfallContinueSendOnError !== false;
+    }
+
     function getCandidateWindows() {
         const candidates = [window];
 
@@ -839,7 +843,10 @@
                 if (state.cancelRequested || error?.name === 'AbortError') {
                     shouldBypassAndSend = false;
                 } else {
-                    console.warn('[network-shortcut/Kingfall] 预处理失败，按要求继续放行发送。');
+                    shouldBypassAndSend = shouldContinueSendOnError(settings);
+                    console.warn(shouldBypassAndSend
+                        ? '[network-shortcut/Kingfall] 预处理失败，按设置继续放行发送。'
+                        : '[network-shortcut/Kingfall] 预处理失败，按设置中止放行发送。');
                     console.error('[Kingfall] 实际报错：', error);
                 }
             }

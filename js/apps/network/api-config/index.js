@@ -45,6 +45,7 @@
         worldBookEntries: [],
         aiRuntimePolicy: AI_RUNTIME_POLICY_DEFAULTS,
         kingfallEnabled: false,
+        kingfallContinueSendOnError: true,
         kingfallProcessingPlaceholderText: '泰罗顶跨中~',
         kingfallSendButtonMedia: null,
         resultDesignTree: [],
@@ -585,6 +586,7 @@
         normalizedSettings.mainChatXmlRules = normalizeAiMainChatRules(nextSettings.mainChatXmlRules);
         normalizedSettings.worldBookEntries = normalizeAiWorldBookEntries(nextSettings.worldBookEntries);
         normalizedSettings.kingfallEnabled = nextSettings.kingfallEnabled === true;
+        normalizedSettings.kingfallContinueSendOnError = nextSettings.kingfallContinueSendOnError !== false;
         normalizedSettings.kingfallProcessingPlaceholderText = typeof nextSettings.kingfallProcessingPlaceholderText === 'string'
             ? nextSettings.kingfallProcessingPlaceholderText.slice(0, 80)
             : '泰罗顶跨中~';
