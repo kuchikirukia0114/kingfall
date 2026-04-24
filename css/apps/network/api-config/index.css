@@ -312,6 +312,11 @@
     flex: 0 0 auto;
 }
 
+.network-api__button--ghost {
+    background: rgba(255, 255, 255, 0.88);
+    color: #6d28d9;
+}
+
 .network-api__model-list {
     flex: 1 1 auto;
 }

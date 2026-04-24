@@ -56,6 +56,7 @@
         settings: null,
         view: DEFAULT_PAGE_VIEW,
         pendingAiApiProfileId: '',
+        listSelectedAiApiProfileId: '',
         pendingAiApiName: '',
         pendingAiUrl: '',
         pendingAiKey: '',
@@ -848,7 +849,11 @@
     }
 
     function openAiConfigList() {
-        ensureSettingsLoaded();
+        const settings = ensureSettingsLoaded();
+        state.listSelectedAiApiProfileId = getAiBindingProfileId('default', settings)
+            || settings.selectedApiProfileId
+            || settings.apiProfiles?.[0]?.id
+            || '';
         state.view = DEFAULT_PAGE_VIEW;
         setStatusMessage('', 'neutral');
         render();
@@ -889,16 +894,71 @@
             return;
         }
 
+        const nextBindings = { ...(currentSettings.apiBindings || {}) };
+        Object.keys(nextBindings).forEach((key) => {
+            if (nextBindings[key] === profileId) {
+                nextBindings[key] = '';
+            }
+        });
+
         const nextSettings = setAiSettings({
             ...currentSettings,
             apiProfiles: nextProfiles,
+            apiBindings: nextBindings,
             selectedApiProfileId: currentSettings.selectedApiProfileId === profileId ? '' : currentSettings.selectedApiProfileId,
         }, { silent: true });
 
         setPendingAiSettings(nextSettings);
+        state.listSelectedAiApiProfileId = getAiBindingProfileId('default', nextSettings)
+            || nextSettings.selectedApiProfileId
+            || nextProfiles[0]?.id
+            || '';
         state.view = DEFAULT_PAGE_VIEW;
         setStatusMessage(nextProfiles.length ? '已删除API' : 'API列表已清空', 'success');
         render();
+    }
+
+    function getListSelectedAiApiProfile(settings = ensureSettingsLoaded()) {
+        const targetProfileId = String(state.listSelectedAiApiProfileId || '').trim()
+            || getAiBindingProfileId('default', settings)
+            || settings.selectedApiProfileId
+            || '';
+        return getAiProfileById(targetProfileId, settings);
+    }
+
+    function applySelectedAiApiProfileFromList() {
+        const settings = ensureSettingsLoaded();
+        const targetProfile = getListSelectedAiApiProfile(settings);
+        if (!targetProfile) {
+            setStatusMessage('请先选择一个 API', 'error');
+            render();
+            return;
+        }
+
+        const nextSettings = setAiSettings({
+            ...settings,
+            selectedApiProfileId: targetProfile.id,
+            apiBindings: {
+                ...(settings.apiBindings || {}),
+                default: targetProfile.id,
+            },
+        }, { silent: false });
+
+        setPendingAiSettings(nextSettings);
+        state.listSelectedAiApiProfileId = targetProfile.id;
+        setStatusMessage(`已应用 ${targetProfile.name || '默认API'}`, 'success');
+        render();
+    }
+
+    function openSelectedAiApiProfileEditorFromList() {
+        const settings = ensureSettingsLoaded();
+        const targetProfile = getListSelectedAiApiProfile(settings);
+        if (!targetProfile) {
+            setStatusMessage('请先选择一个 API', 'error');
+            render();
+            return;
+        }
+        openAiConfigEditor(targetProfile.id);
     }
 
     function getCurrentModelCache() {
@@ -1307,11 +1367,15 @@
             };
         }
 
+        const settings = ensureSettingsLoaded();
+        const hasProfiles = Array.isArray(settings.apiProfiles) && settings.apiProfiles.length > 0;
         return {
             title: 'API 列表',
             subtitle: '管理可复用的 API 连接',
             actions: [
-                { action: 'create-profile', label: '新建API', tone: 'primary' },
+                { action: 'apply-selected-profile', label: '应用', tone: 'primary', disabled: !hasProfiles },
+                { action: 'edit-selected-profile', label: '编辑', tone: 'secondary', disabled: !hasProfiles },
+                { action: 'create-profile', label: '新建API', tone: 'ghost' },
             ],
         };
     }
@@ -1339,7 +1403,8 @@
     function renderProfileList() {
         const settings = ensureSettingsLoaded();
         const profiles = Array.isArray(settings.apiProfiles) ? settings.apiProfiles : [];
-        const selectedProfileId = settings.selectedApiProfileId || '';
+        const appliedProfileId = getAiBindingProfileId('default', settings) || settings.selectedApiProfileId || '';
+        const selectedProfileId = String(state.listSelectedAiApiProfileId || '').trim() || appliedProfileId;
 
         if (!profiles.length) {
             return `
@@ -1353,7 +1418,7 @@
             <div class="network-api__list" id="networkApiProfileList">
                 ${profiles.map((profile) => {
                     const subtitle = profile.model || '未设模型';
-                    const badgeHtml = selectedProfileId === profile.id
+                    const badgeHtml = appliedProfileId === profile.id
                         ? '<span class="network-api__profile-badge">当前</span>'
                         : '';
 
@@ -1610,6 +1675,12 @@
         const action = actionButton.getAttribute('data-api-action') || '';
 
         switch (action) {
+            case 'apply-selected-profile':
+                applySelectedAiApiProfileFromList();
+                break;
+            case 'edit-selected-profile':
+                openSelectedAiApiProfileEditorFromList();
+                break;
             case 'create-profile':
                 openNewAiApiProfileDraft();
                 break;
@@ -1668,7 +1739,8 @@
 
         const profileItem = event.target.closest('[data-ai-api-profile-id]');
         if (profileItem && state.view === 'list') {
-            openAiConfigEditor(profileItem.getAttribute('data-ai-api-profile-id') || '');
+            state.listSelectedAiApiProfileId = String(profileItem.getAttribute('data-ai-api-profile-id') || '').trim();
+            render();
             return;
         }
 
