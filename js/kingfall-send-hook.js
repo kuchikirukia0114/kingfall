@@ -394,36 +394,6 @@
         return `${profileName} | ${modelName} | ${endpoint}`;
     }
 
-    function buildMainChatMessages(settings) {
-        if (typeof networkData.buildAiMainChatPreviewMessages === 'function') {
-            const messages = networkData.buildAiMainChatPreviewMessages(settings);
-            return Array.isArray(messages) ? messages : [];
-        }
-        return [];
-    }
-
-    async function buildWorldBookText(settings) {
-        const configuredEntries = Array.isArray(settings?.worldBookEntries) ? settings.worldBookEntries : [];
-        if (!configuredEntries.length || typeof networkData.buildAiWorldBookTriggerText !== 'function') {
-            return '';
-        }
-
-        const chunks = [];
-        for (let index = 0; index < configuredEntries.length; index += 1) {
-            const entry = configuredEntries[index];
-            try {
-                const text = await networkData.buildAiWorldBookTriggerText(entry, settings);
-                if (String(text || '').trim()) {
-                    chunks.push(String(text).trim());
-                }
-            } catch (error) {
-                console.warn('[network-shortcut/Kingfall] 世界书构建失败。', error);
-            }
-        }
-
-        return chunks.join('\n\n').trim();
-    }
-
     async function buildPromptMessages(userInput, settings = getSettings()) {
         const messages = [];
         const presetEntry = typeof networkData.getSelectedAiPresetEntry === 'function'
@@ -450,35 +420,36 @@
             });
         }
 
-        const mainChatMessages = buildMainChatMessages(settings);
-        if (mainChatMessages.length) {
-            messages.push({
-                role: 'system',
-                content: [
-                    '以下是本插件选取的主聊天上下文：',
-                    ...mainChatMessages.map((message) => `${message.role === 'user' ? '用户' : 'AI'}：${message.content}`),
-                ].join('\n\n'),
-            });
-        }
-
-        const worldBookText = await buildWorldBookText(settings);
-        if (worldBookText) {
-            messages.push({
-                role: 'system',
-                content: worldBookText,
-            });
-        }
-
-        messages.push({
-            role: 'user',
-            content: userInput,
-        });
-
         return messages.filter((message) => {
             const role = String(message?.role || '').trim();
             const content = String(message?.content || '').trim();
             return !!role && !!content;
         });
+    }
+
+    function logOutboundMessages(messages) {
+        if (!Array.isArray(messages)) {
+            console.log('[Kingfall] 即将发送的 messages：[]');
+            return;
+        }
+
+        const printableMessages = messages.map((message, index) => ({
+            index,
+            role: String(message?.role || '').trim(),
+            content: String(message?.content || ''),
+        }));
+
+        console.groupCollapsed(`[Kingfall] 即将发送的 messages（共 ${printableMessages.length} 条）`);
+        printableMessages.forEach((message) => {
+            console.log(`#${message.index} [${message.role || 'unknown'}]`);
+            console.log(message.content);
+        });
+        try {
+            console.log('[Kingfall] messages JSON =', JSON.stringify(printableMessages, null, 2));
+        } catch (error) {
+            console.warn('[Kingfall] messages JSON 序列化失败。', error);
+        }
+        console.groupEnd();
     }
 
     function extractJsonTextFromReply(replyText) {
@@ -588,6 +559,7 @@
 
         console.log('[Kingfall] 更新生成参考资料……');
         console.log('[Kingfall] 当前调用 API：', runtimeProfileDebugText);
+        logOutboundMessages(messages);
 
         if (!endpoint || !apiKey || !model) {
             const configError = new Error('Kingfall 所需的 API 地址、密钥或模型未配置完整');
