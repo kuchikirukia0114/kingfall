@@ -333,3 +333,60 @@
     line-height: 1.45;
     word-break: break-all;
 }
+
+.network-api__deepseek-section {
+    border-color: rgba(0, 122, 255, 0.18);
+    background: linear-gradient(180deg, rgba(0, 122, 255, 0.03) 0%, #ffffff 100%);
+    transition: opacity 0.15s;
+}
+
+.network-api__deepseek-section.is-off .network-api__form {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.network-api__deepseek-section .network-api__section-head strong {
+    color: #4f6bfe;
+}
+
+.network-api__deepseek-logo-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.network-api__deepseek-logo {
+    height: 24px;
+    width: auto;
+    vertical-align: middle;
+    object-fit: contain;
+}
+
+.network-api__section-head--toggle {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.network-api__section-head--toggle input[type="checkbox"] {
+    margin: 4px 0 0;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+}
+
+.network-api__section-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.network-api__deepseek-section select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

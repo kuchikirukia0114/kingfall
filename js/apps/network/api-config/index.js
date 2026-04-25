@@ -58,11 +58,14 @@
         pendingAiApiProfileId: '',
         listSelectedAiApiProfileId: '',
         pendingAiApiName: '',
+        pendingAiEndpointMode: 'openai',
         pendingAiUrl: '',
         pendingAiKey: '',
         pendingAiModel: '',
         pendingAiTemperature: '',
         pendingAiTopP: '',
+        pendingDeepseekThinking: '',
+        pendingDeepseekReasoningEffort: 'high',
         pendingAiRequestStreamMode: 'auto',
         pendingAiProfileRuntimePolicy: { ...AI_RUNTIME_POLICY_OVERRIDE_DEFAULTS },
         aiConfigStatusMessage: '',
@@ -126,15 +129,23 @@
         }));
     }
 
-    function normalizeAiEndpoint(endpoint) {
+    function normalizeAiEndpointMode(value) {
+        return String(value || '').trim() === 'deepseekPrefix' ? 'deepseekPrefix' : 'openai';
+    }
+
+    function normalizeAiEndpoint(endpoint, endpointMode = 'openai') {
+        const mode = normalizeAiEndpointMode(endpointMode);
         const normalizedEndpoint = String(endpoint || '').trim().replace(/\/+$/, '');
         if (!normalizedEndpoint) return '';
         if (/\/chat\/completions$/i.test(normalizedEndpoint)) return normalizedEndpoint;
+        if (mode === 'deepseekPrefix') {
+            return `${normalizedEndpoint}/beta/chat/completions`;
+        }
         return `${normalizedEndpoint}/chat/completions`;
     }
 
-    function getAiModelsEndpoint(endpoint) {
-        const normalizedEndpoint = normalizeAiEndpoint(endpoint);
+    function getAiModelsEndpoint(endpoint, endpointMode = 'openai') {
+        const normalizedEndpoint = normalizeAiEndpoint(endpoint, endpointMode);
         if (!normalizedEndpoint) return '';
         return normalizedEndpoint.replace(/\/chat\/completions$/i, '/models');
     }
@@ -217,16 +228,30 @@
         return String(value || '').trim() === 'alwaysOn' ? 'alwaysOn' : 'auto';
     }
 
+    function normalizeDeepseekThinking(value) {
+        if (value === true || value === 'enabled') return 'enabled';
+        if (value === 'disabled') return 'disabled';
+        return '';
+    }
+
+    function normalizeDeepseekReasoningEffort(value) {
+        const v = String(value || '').trim();
+        return v === 'max' ? 'max' : 'high';
+    }
+
     function normalizeAiApiProfile(profile, index = 0) {
         const nextProfile = profile && typeof profile === 'object' ? profile : {};
         return {
             id: typeof nextProfile.id === 'string' && nextProfile.id.trim() ? nextProfile.id.trim() : createAiApiProfileId(index),
             name: getAiApiDefaultName(nextProfile),
-            url: normalizeAiEndpoint(nextProfile.url),
+            endpointMode: normalizeAiEndpointMode(nextProfile.endpointMode),
+            url: normalizeAiEndpoint(nextProfile.url, nextProfile.endpointMode),
             key: typeof nextProfile.key === 'string' ? nextProfile.key.trim() : '',
             model: typeof nextProfile.model === 'string' ? nextProfile.model.trim() : '',
             temperature: clampAiNumberSetting(nextProfile.temperature, 0, 2),
             topP: clampAiNumberSetting(nextProfile.topP, 0, 1),
+            deepseekThinking: normalizeDeepseekThinking(nextProfile.deepseekThinking),
+            deepseekReasoningEffort: normalizeDeepseekReasoningEffort(nextProfile.deepseekReasoningEffort),
             requestStreamMode: normalizeAiApiRequestStreamMode(nextProfile.requestStreamMode),
             runtimePolicyOverrides: normalizeAiRuntimePolicyOverrides(nextProfile.runtimePolicyOverrides),
             modelCache: normalizeAiModelCache(nextProfile.modelCache),
@@ -350,11 +375,14 @@
             aiRuntimePolicy: resolveAiRuntimePolicy(globalRuntimePolicy, runtimePolicyOverrides),
             globalAiRuntimePolicy: globalRuntimePolicy,
             runtimePolicyOverrides,
+            endpointMode: normalizeAiEndpointMode(profile?.endpointMode),
             url: profile?.url || '',
             key: profile?.key || '',
             model: profile?.model || '',
             temperature: profile?.temperature || '',
             topP: profile?.topP || '',
+            deepseekThinking: normalizeDeepseekThinking(profile?.deepseekThinking),
+            deepseekReasoningEffort: normalizeDeepseekReasoningEffort(profile?.deepseekReasoningEffort),
             requestStreamMode: profile?.requestStreamMode || 'auto',
             modelCache: normalizeAiModelCache(profile?.modelCache),
         };
@@ -372,7 +400,7 @@
 
     function normalizeAiPresetBlock(block, index = 0) {
         const rawRole = typeof block?.role === 'string' ? block.role.trim() : '';
-        const role = ['system', 'user', 'assistant', '_context', '_info', '_worldinfo'].includes(rawRole)
+        const role = ['system', 'user', 'assistant', '_context', '_info', '_worldinfo', '_prefix'].includes(rawRole)
             ? rawRole
             : 'system';
         const defaultNameMap = {
@@ -382,6 +410,7 @@
             _context: '主聊天',
             _info: '信息块',
             _worldinfo: '世界书',
+            _prefix: '前缀续写',
         };
         const explicitMessageRole = typeof block?.messageRole === 'string' ? block.messageRole.trim() : '';
         const messageRole = ['system', 'user', 'assistant'].includes(explicitMessageRole)
@@ -401,6 +430,8 @@
                 ? block.name.trim().slice(0, 32)
                 : (defaultNameMap[role] || `消息块 ${index + 1}`),
             text: (role === '_context' || role === '_info' || role === '_worldinfo') ? '' : String(block?.text || '').slice(0, 20000),
+            prefixContent: role === '_prefix' ? String(block?.prefixContent || block?.text || '').slice(0, 20000) : '',
+            stopSequence: role === '_prefix' ? String(block?.stopSequence || '').slice(0, 200) : '',
             sourceId,
             sourceName,
             sourceScope,
@@ -709,11 +740,14 @@
         networkData.currentAiSettings = nextSettings;
         state.pendingAiApiProfileId = selectedProfile?.id || '';
         state.pendingAiApiName = selectedProfile?.name || getNextAiApiProfileName(nextSettings);
+        state.pendingAiEndpointMode = normalizeAiEndpointMode(selectedProfile?.endpointMode);
         state.pendingAiUrl = selectedProfile?.url || '';
         state.pendingAiKey = selectedProfile?.key || '';
         state.pendingAiModel = selectedProfile?.model || '';
         state.pendingAiTemperature = selectedProfile?.temperature || '';
         state.pendingAiTopP = selectedProfile?.topP || '';
+        state.pendingDeepseekThinking = normalizeDeepseekThinking(selectedProfile?.deepseekThinking);
+        state.pendingDeepseekReasoningEffort = normalizeDeepseekReasoningEffort(selectedProfile?.deepseekReasoningEffort);
         state.pendingAiRequestStreamMode = normalizeAiApiRequestStreamMode(selectedProfile?.requestStreamMode || 'auto');
         state.pendingAiProfileRuntimePolicy = normalizeAiRuntimePolicyOverrides(selectedProfile?.runtimePolicyOverrides);
         state.pendingAiRuntimePolicy = normalizeAiRuntimePolicy(nextSettings.aiRuntimePolicy);
@@ -740,11 +774,14 @@
             ...overrides,
             id: overrides.id ?? state.pendingAiApiProfileId ?? currentProfile?.id,
             name: overrides.name ?? state.pendingAiApiName,
+            endpointMode: overrides.endpointMode ?? state.pendingAiEndpointMode,
             url: overrides.url ?? state.pendingAiUrl,
             key: overrides.key ?? state.pendingAiKey,
             model: overrides.model ?? state.pendingAiModel,
             temperature: overrides.temperature ?? state.pendingAiTemperature,
             topP: overrides.topP ?? state.pendingAiTopP,
+            deepseekThinking: overrides.deepseekThinking ?? state.pendingDeepseekThinking,
+            deepseekReasoningEffort: overrides.deepseekReasoningEffort ?? state.pendingDeepseekReasoningEffort,
             requestStreamMode: overrides.requestStreamMode ?? state.pendingAiRequestStreamMode,
             runtimePolicyOverrides: overrides.runtimePolicyOverrides ?? state.pendingAiProfileRuntimePolicy,
             modelCache: overrides.modelCache ?? currentProfile?.modelCache ?? [],
@@ -863,11 +900,14 @@
         ensureSettingsLoaded();
         state.pendingAiApiProfileId = '';
         state.pendingAiApiName = '';
+        state.pendingAiEndpointMode = 'openai';
         state.pendingAiUrl = '';
         state.pendingAiKey = '';
         state.pendingAiModel = '';
         state.pendingAiTemperature = '';
         state.pendingAiTopP = '';
+        state.pendingDeepseekThinking = '';
+        state.pendingDeepseekReasoningEffort = 'high';
         state.pendingAiRequestStreamMode = 'auto';
         state.pendingAiProfileRuntimePolicy = { ...AI_RUNTIME_POLICY_OVERRIDE_DEFAULTS };
         state.selectedAiModelIndex = -1;
@@ -1059,7 +1099,7 @@
             return false;
         }
 
-        const modelsEndpoint = getAiModelsEndpoint(state.pendingAiUrl);
+        const modelsEndpoint = getAiModelsEndpoint(state.pendingAiUrl, state.pendingAiEndpointMode);
         const apiKey = String(state.pendingAiKey || '').trim();
 
         if (!modelsEndpoint) {
@@ -1142,6 +1182,12 @@
 
         if (topP) {
             parts.push(`Top P ${topP}`);
+        }
+
+        if (state.pendingDeepseekThinking === 'enabled') {
+            parts.push(`思考:${state.pendingDeepseekReasoningEffort || 'high'}`);
+        } else if (state.pendingDeepseekThinking === 'disabled') {
+            parts.push('思考:关');
         }
 
         return parts.length ? parts.join(' / ') : '默认';
@@ -1461,8 +1507,16 @@
                             <input class="xp-input network-api__input" data-api-field="name" type="text" maxlength="32" spellcheck="false" value="${escapeHtml(state.pendingAiApiName)}" placeholder="默认">
                         </label>
                         <label class="network-api__field-group">
+                            <span class="network-api__field-label">端点类型</span>
+                            <select class="xp-input network-api__input" data-api-field="endpointMode">
+                                <option value="openai" ${state.pendingAiEndpointMode === 'openai' ? 'selected' : ''}>自定义（兼容 OpenAI）</option>
+                                <option value="deepseekPrefix" ${state.pendingAiEndpointMode === 'deepseekPrefix' ? 'selected' : ''}>DeepSeek（对话前缀续写）</option>
+                            </select>
+                            <span class="network-api__field-hint">DeepSeek 前缀续写会自动使用 /beta/chat/completions</span>
+                        </label>
+                        <label class="network-api__field-group">
                             <span class="network-api__field-label">端点</span>
-                            <input class="xp-input network-api__input" data-api-field="url" type="text" spellcheck="false" value="${escapeHtml(state.pendingAiUrl)}" placeholder="自定义端点">
+                            <input class="xp-input network-api__input" data-api-field="url" type="text" spellcheck="false" value="${escapeHtml(state.pendingAiUrl)}" placeholder="${state.pendingAiEndpointMode === 'deepseekPrefix' ? 'https://api.deepseek.com' : '自定义端点'}">
                         </label>
                         <label class="network-api__field-group">
                             <span class="network-api__field-label">API Key</span>
@@ -1539,6 +1593,10 @@
     }
 
     function renderParamConfigView() {
+        const thinkingValue = state.pendingDeepseekThinking || '';
+        const isSendingParams = thinkingValue === 'enabled' || thinkingValue === 'disabled';
+        const reasoningEffort = state.pendingDeepseekReasoningEffort || 'high';
+
         return `
             <div class="network-api__scroll-pane">
                 <div class="network-api__card network-api__card--form">
@@ -1550,6 +1608,33 @@
                         <label class="network-api__field-group">
                             <span class="network-api__field-label">Top P</span>
                             <input class="xp-input network-api__input" data-api-field="topP" type="number" min="0" max="1" step="0.1" inputmode="decimal" spellcheck="false" value="${escapeHtml(state.pendingAiTopP)}" placeholder="0 - 1">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="network-api__card network-api__card--form network-api__deepseek-section${isSendingParams ? '' : ' is-off'}">
+                    <label class="network-api__section-head network-api__section-head--toggle">
+                        <div class="network-api__section-head-text">
+                            <strong class="network-api__deepseek-logo-title"><img class="network-api__deepseek-logo" src="../assets/deepseek.png" alt="DeepSeek"> 思考模式</strong>
+                            <span>勾选后请求会携带 thinking 参数</span>
+                        </div>
+                        <input data-api-field="deepseekSendParams" type="checkbox" ${isSendingParams ? 'checked' : ''}>
+                    </label>
+                    <div class="network-api__form">
+                        <label class="network-api__field-group">
+                            <span class="network-api__field-label">思考开关 (thinking.type)</span>
+                            <select class="xp-input network-api__input" data-api-field="deepseekThinking" ${!isSendingParams ? 'disabled' : ''}>
+                                <option value="enabled" ${thinkingValue !== 'disabled' ? 'selected' : ''}>启用 (enabled)</option>
+                                <option value="disabled" ${thinkingValue === 'disabled' ? 'selected' : ''}>禁用 (disabled)</option>
+                            </select>
+                        </label>
+                        <label class="network-api__field-group">
+                            <span class="network-api__field-label">思考强度 (reasoning_effort)</span>
+                            <select class="xp-input network-api__input" data-api-field="deepseekReasoningEffort" ${!isSendingParams ? 'disabled' : ''}>
+                                <option value="high" ${reasoningEffort === 'high' ? 'selected' : ''}>high — 普通请求推荐</option>
+                                <option value="max" ${reasoningEffort === 'max' ? 'selected' : ''}>max — 复杂推理 / Agent</option>
+                            </select>
+                            <span class="network-api__field-hint">high 适合日常对话；max 适合复杂推理任务</span>
                         </label>
                     </div>
                 </div>
@@ -1797,6 +1882,13 @@
             return;
         }
 
+        if (fieldName === 'endpointMode') {
+            state.pendingAiEndpointMode = normalizeAiEndpointMode(nextValue);
+            state.aiConfigConnectionState = 'idle';
+            render();
+            return;
+        }
+
         if (fieldName === 'url') {
             state.pendingAiUrl = nextValue;
             state.aiConfigConnectionState = 'idle';
@@ -1821,6 +1913,26 @@
 
         if (fieldName === 'topP') {
             state.pendingAiTopP = nextValue;
+            return;
+        }
+
+        if (fieldName === 'deepseekSendParams') {
+            if (event.target.checked) {
+                state.pendingDeepseekThinking = state.pendingDeepseekThinking || 'enabled';
+            } else {
+                state.pendingDeepseekThinking = '';
+            }
+            render();
+            return;
+        }
+
+        if (fieldName === 'deepseekThinking') {
+            state.pendingDeepseekThinking = normalizeDeepseekThinking(nextValue) || 'enabled';
+            return;
+        }
+
+        if (fieldName === 'deepseekReasoningEffort') {
+            state.pendingDeepseekReasoningEffort = normalizeDeepseekReasoningEffort(nextValue);
             return;
         }
 

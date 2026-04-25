@@ -549,6 +549,24 @@
             ? networkData.getAiRuntimeSettings('default', freshSettings)
             : freshSettings;
         const messages = await buildPromptMessages(userInput, freshSettings);
+
+        const stopSequences = [];
+        try {
+            const presetEntry = typeof networkData.getSelectedAiPresetEntry === 'function'
+                ? networkData.getSelectedAiPresetEntry(freshSettings)
+                : null;
+            if (presetEntry && Array.isArray(presetEntry.blocks)) {
+                presetEntry.blocks.forEach((block) => {
+                    if (String(block?.role || '').trim() === '_prefix') {
+                        const stop = String(block?.stopSequence || '').trim();
+                        if (stop && !stopSequences.includes(stop)) {
+                            stopSequences.push(stop);
+                        }
+                    }
+                });
+            }
+        } catch (error) {}
+
         const endpoint = String(runtimeSettings?.url || '').trim();
         const apiKey = String(runtimeSettings?.key || '').trim();
         const model = String(runtimeSettings?.model || '').trim();
@@ -571,19 +589,36 @@
 
         let rawResponseText = '';
         try {
+            const deepseekThinking = String(runtimeSettings?.deepseekThinking || '').trim();
+            const deepseekReasoningEffort = String(runtimeSettings?.deepseekReasoningEffort || '').trim();
+            const isDeepseekThinkingEnabled = deepseekThinking === 'enabled';
+
+            const requestBody = {
+                model,
+                messages,
+                temperature: runtimeSettings?.temperature === '' ? undefined : Number(runtimeSettings.temperature),
+                top_p: runtimeSettings?.topP === '' ? undefined : Number(runtimeSettings.topP),
+                stream: false,
+            };
+
+            if (isDeepseekThinkingEnabled) {
+                requestBody.thinking = { type: 'enabled' };
+                requestBody.reasoning_effort = deepseekReasoningEffort === 'max' ? 'max' : 'high';
+            } else if (deepseekThinking === 'disabled') {
+                requestBody.thinking = { type: 'disabled' };
+            }
+
+            if (stopSequences.length) {
+                requestBody.stop = stopSequences;
+            }
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${apiKey}`,
                 },
-                body: JSON.stringify({
-                    model,
-                    messages,
-                    temperature: runtimeSettings?.temperature === '' ? undefined : Number(runtimeSettings.temperature),
-                    top_p: runtimeSettings?.topP === '' ? undefined : Number(runtimeSettings.topP),
-                    stream: false,
-                }),
+                body: JSON.stringify(requestBody),
                 signal: abortController.signal,
             });
 

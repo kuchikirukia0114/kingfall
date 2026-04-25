@@ -12,6 +12,7 @@
         { key: 'context', label: '主聊天' },
         { key: 'info', label: '信息块' },
         { key: 'worldinfo', label: '世界书' },
+        { key: 'prefix', label: '对话前缀续写' },
     ];
     const INFO_SOURCE_OPTIONS = [
         {
@@ -111,6 +112,7 @@
         if (role === '_context') return '主聊天';
         if (role === '_info') return '信息块';
         if (role === '_worldinfo') return '世界书';
+        if (role === '_prefix') return '前缀续写';
         return index > 0 ? `系统块 ${index + 1}` : '系统块';
     }
 
@@ -120,7 +122,7 @@
         }
 
         const rawRole = typeof block?.role === 'string' ? block.role.trim() : '';
-        const role = ['system', 'user', 'assistant', '_context', '_info', '_worldinfo'].includes(rawRole)
+        const role = ['system', 'user', 'assistant', '_context', '_info', '_worldinfo', '_prefix'].includes(rawRole)
             ? rawRole
             : 'system';
         const explicitMessageRole = typeof block?.messageRole === 'string' ? block.messageRole.trim() : '';
@@ -138,6 +140,8 @@
                 ? block.name.trim().slice(0, 32)
                 : getDefaultBlockName(role, index),
             text: (role === '_context' || role === '_info' || role === '_worldinfo') ? '' : String(block?.text || '').slice(0, 20000),
+            prefixContent: role === '_prefix' ? String(block?.prefixContent || block?.text || '').slice(0, 20000) : '',
+            stopSequence: role === '_prefix' ? String(block?.stopSequence || '').slice(0, 200) : '',
             sourceId: typeof block?.sourceId === 'string' ? block.sourceId.trim().slice(0, 80) : '',
             sourceName: typeof block?.sourceName === 'string' ? block.sourceName.trim().slice(0, 48) : '',
             sourceScope: typeof block?.sourceScope === 'string' ? block.sourceScope.trim().slice(0, 32) : '',
@@ -360,6 +364,9 @@
         if (role === '_worldinfo') {
             return String(block?.sourceName || block?.name || '').trim() || '世界书';
         }
+        if (role === '_prefix') {
+            return String(block?.name || '').trim() || '前缀续写';
+        }
         return String(block?.name || '').trim() || getDefaultBlockName(role || 'system', index);
     }
 
@@ -371,6 +378,10 @@
         }
         if (role === '_info' || role === '_worldinfo') {
             return MESSAGE_ROLE_ORDER.includes(messageRole) ? messageRole : 'system';
+        }
+        if (role === '_prefix') {
+            const stop = String(block?.stopSequence || '').trim();
+            return stop ? `assistant / stop: ${stop}` : 'assistant / prefix';
         }
         if (MESSAGE_ROLE_ORDER.includes(role)) {
             return role;
@@ -1237,6 +1248,14 @@
                     messages.push({ role: messageRole, content });
                 }
             }
+
+            if (role === '_prefix') {
+                const prefixContent = String(block?.prefixContent || '').trim();
+                if (prefixContent) {
+                    const prefixMessage = { role: 'assistant', content: prefixContent, prefix: true };
+                    messages.push(prefixMessage);
+                }
+            }
         }
 
         return messages;
@@ -1375,6 +1394,8 @@
             messageRole: String(normalizedBlock.messageRole || ''),
             name: String(normalizedBlock.name || ''),
  text: String(normalizedBlock.text || ''),
+            prefixContent: String(normalizedBlock.prefixContent || ''),
+            stopSequence: String(normalizedBlock.stopSequence || ''),
             sourceId: String(normalizedBlock.sourceId || ''),
             sourceName: String(normalizedBlock.sourceName || ''),
             sourceScope: String(normalizedBlock.sourceScope || ''),
@@ -1823,6 +1844,30 @@
         state.view = 'contextEditor';
         render();
     }
+
+    function openPrefixBlockEditor(blockIndex = -1) {
+        const normalizedIndex = Number(blockIndex);
+        const blocks = normalizePresetBlocks(state.pendingPresetBlocks);
+        const targetBlock = Number.isFinite(normalizedIndex) && normalizedIndex >= 0 && normalizedIndex < blocks.length
+            ? blocks[normalizedIndex]
+            : createPresetBlock('_prefix');
+
+        state.editingBlockIndex = Number.isFinite(normalizedIndex) && normalizedIndex >= 0 && normalizedIndex < blocks.length
+            ? normalizedIndex
+            : -1;
+        state.pendingBlockDraft = normalizePresetBlock({
+            ...targetBlock,
+            role: '_prefix',
+            name: targetBlock.name || '前缀续写',
+            prefixContent: targetBlock.prefixContent || '',
+            stopSequence: targetBlock.stopSequence || '',
+        }, state.editingBlockIndex >= 0 ? state.editingBlockIndex : blocks.length);
+        state.blockDraftBaseline = buildComparableBlockSnapshot(state.pendingBlockDraft, state.editingBlockIndex >= 0 ? state.editingBlockIndex : blocks.length);
+        state.infoSourceBaselineIndex = -1;
+        state.view = 'prefixEditor';
+        render();
+    }
+
     function openInfoSourcePicker(blockIndex = -1) {
         const normalizedIndex = Number(blockIndex);
         const blocks = normalizePresetBlocks(state.pendingPresetBlocks);
@@ -1944,6 +1989,10 @@
         }
         if (typeKey === 'worldinfo') {
             openWorldBookPicker();
+            return;
+        }
+        if (typeKey === 'prefix') {
+            openPrefixBlockEditor();
             return;
         }
 
@@ -2097,6 +2146,10 @@
             openWorldBookPicker(targetIndex);
             return;
         }
+        if (role === '_prefix') {
+            openPrefixBlockEditor(targetIndex);
+            return;
+        }
 
         openMessageBlockEditor(targetIndex);
     }
@@ -2164,6 +2217,16 @@
                 title: '主聊天',
                 actions: [
                     { action: 'preview-draft-block', label: '查看', tone: 'secondary' },
+                    { action: 'save-draft-block', label: '保存', tone: 'primary' },
+                    { action: 'back-editor', label: '返回', tone: 'ghost' },
+                ],
+            };
+        }
+
+        if (state.view === 'prefixEditor') {
+            return {
+                title: '对话前缀续写',
+                actions: [
                     { action: 'save-draft-block', label: '保存', tone: 'primary' },
                     { action: 'back-editor', label: '返回', tone: 'ghost' },
                 ],
@@ -2354,6 +2417,32 @@
         `;
     }
 
+    function renderPrefixBlockEditor() {
+        const draft = normalizePresetBlock(state.pendingBlockDraft || createPresetBlock('_prefix'), state.editingBlockIndex >= 0 ? state.editingBlockIndex : 0);
+        const prefixContent = String(draft.prefixContent || '').trim();
+        const stopSequence = String(draft.stopSequence || '').trim();
+
+        return `
+            <div class="network-preset__content network-preset__content--prefix-editor">
+                <div class="network-preset__editor-card">
+                    <div class="network-preset__field-group">
+                        <span class="network-preset__field-label">角色</span>
+                        <input class="xp-input network-preset__input" type="text" value="assistant" disabled>
+                    </div>
+                    <div class="network-preset__field-group">
+                        <span class="network-preset__field-label">前缀内容 (prefix)</span>
+                        <textarea class="network-preset__textarea" data-preset-draft-field="prefixContent" spellcheck="false" placeholder="模型会从这里接着写">${escapeHtml(prefixContent)}</textarea>
+                    </div>
+                    <div class="network-preset__field-group">
+                        <span class="network-preset__field-label">stop 停止序列</span>
+                        <input class="xp-input network-preset__input" data-preset-draft-field="stopSequence" type="text" maxlength="200" spellcheck="false" value="${escapeHtml(stopSequence)}" placeholder="停止符，如三个反引号">
+                        <span class="network-preset__field-label" style="color:#6a7c90;font-size:10px;">模型生成到该序列时停止，留空则不发送 stop 参数</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function getMessageRoleLabel(messageRole) {
         if (messageRole === 'user') return 'user';
         if (messageRole === 'assistant') return 'ai助手';
@@ -2460,6 +2549,10 @@
 
         if (state.view === 'contextEditor') {
             return renderContextBlockEditor(settings);
+        }
+
+        if (state.view === 'prefixEditor') {
+            return renderPrefixBlockEditor();
         }
 
         if (state.view === 'infoSourcePicker') {
