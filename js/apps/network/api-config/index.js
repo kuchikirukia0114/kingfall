@@ -46,6 +46,9 @@
         aiRuntimePolicy: AI_RUNTIME_POLICY_DEFAULTS,
         kingfallEnabled: false,
         kingfallContinueSendOnError: true,
+        kingfallAutoRetryEnabled: true,
+        kingfallAutoRetryCount: '3',
+        kingfallAutoRetryIntervalMs: '3000',
         kingfallProcessingPlaceholderText: '泰罗顶跨中~',
         kingfallSendButtonMedia: null,
         resultDesignTree: [],
@@ -619,6 +622,9 @@
         normalizedSettings.worldBookEntries = normalizeAiWorldBookEntries(nextSettings.worldBookEntries);
         normalizedSettings.kingfallEnabled = nextSettings.kingfallEnabled === true;
         normalizedSettings.kingfallContinueSendOnError = nextSettings.kingfallContinueSendOnError !== false;
+        normalizedSettings.kingfallAutoRetryEnabled = nextSettings.kingfallAutoRetryEnabled !== false;
+        normalizedSettings.kingfallAutoRetryCount = clampAiIntegerSetting(nextSettings.kingfallAutoRetryCount, 1, 10, '3');
+        normalizedSettings.kingfallAutoRetryIntervalMs = clampAiIntegerSetting(nextSettings.kingfallAutoRetryIntervalMs, 0, 60000, '3000');
         normalizedSettings.kingfallProcessingPlaceholderText = typeof nextSettings.kingfallProcessingPlaceholderText === 'string'
             ? nextSettings.kingfallProcessingPlaceholderText.slice(0, 80)
             : '泰罗顶跨中~';

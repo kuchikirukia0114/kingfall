@@ -37,6 +37,12 @@
 
 /* ==== settings page ==== */
 
+.network-page__canvas--settings {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .network-settings__section {
     margin: 20px;
     padding: 20px 22px;
@@ -167,11 +173,23 @@
     border-top: 1px solid var(--kf-border-subtle, rgba(139, 92, 246, 0.08));
 }
 
+.network-settings__subsection-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
 .network-settings__subsection-title {
     font-size: 13px;
     font-weight: 700;
     color: var(--kf-text, #1e1b4b);
     margin-bottom: 12px;
+}
+
+.network-settings__subsection-head .network-settings__subsection-title {
+    margin-bottom: 0;
 }
 
 .network-settings__field-group {
@@ -183,6 +201,28 @@
 .network-settings__field-label {
     font-size: 11px;
     color: var(--kf-text-secondary, #475569);
+}
+
+.network-settings__retry-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.network-settings__retry-grid.is-disabled {
+    opacity: 0.42;
+}
+
+.network-settings__retry-grid.is-disabled .network-settings__field-label {
+    color: var(--kf-text-muted, #94a3b8);
+}
+
+.network-settings__retry-grid.is-disabled .network-settings__text-input:disabled {
+    background: #f3f4f6;
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #94a3b8;
+    box-shadow: none;
 }
 
 .network-settings__text-input {

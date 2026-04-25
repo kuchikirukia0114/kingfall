@@ -87,6 +87,36 @@
         return settings?.kingfallContinueSendOnError !== false;
     }
 
+    function isAutoRetryEnabled(settings = getSettings()) {
+        return settings?.kingfallAutoRetryEnabled !== false;
+    }
+
+    function getAutoRetryCount(settings = getSettings()) {
+        const value = parseInt(String(settings?.kingfallAutoRetryCount ?? '3').trim(), 10);
+        if (!Number.isFinite(value)) return 3;
+        return Math.min(10, Math.max(1, value));
+    }
+
+    function getAutoRetryIntervalMs(settings = getSettings()) {
+        const value = parseInt(String(settings?.kingfallAutoRetryIntervalMs ?? '3000').trim(), 10);
+        if (!Number.isFinite(value)) return 3000;
+        return Math.min(60000, Math.max(0, value));
+    }
+
+    function sleep(ms = 0) {
+        return new Promise((resolve) => {
+            window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+        });
+    }
+
+    function showRetryFailureAlert(error, attempts) {
+        const errorMessage = String(error?.message || '未知错误').trim() || '未知错误';
+        const alertMessage = `Kingfall 处理失败，已达到重试上限（${attempts}次）。\n\n错误信息：${errorMessage}`;
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+            window.alert(alertMessage);
+        }
+    }
+
     function getCandidateWindows() {
         const candidates = [window];
 
@@ -429,7 +459,7 @@
 
     function logOutboundMessages(messages) {
         if (!Array.isArray(messages)) {
-            console.log('[Kingfall] 即将发送的 messages：[]');
+            console.log('[Kingfall] messages JSON = []');
             return;
         }
 
@@ -437,19 +467,14 @@
             index,
             role: String(message?.role || '').trim(),
             content: String(message?.content || ''),
+            ...(message?.prefix === true ? { prefix: true } : {}),
         }));
 
-        console.groupCollapsed(`[Kingfall] 即将发送的 messages（共 ${printableMessages.length} 条）`);
-        printableMessages.forEach((message) => {
-            console.log(`#${message.index} [${message.role || 'unknown'}]`);
-            console.log(message.content);
-        });
         try {
             console.log('[Kingfall] messages JSON =', JSON.stringify(printableMessages, null, 2));
         } catch (error) {
             console.warn('[Kingfall] messages JSON 序列化失败。', error);
         }
-        console.groupEnd();
     }
 
     function extractJsonTextFromReply(replyText) {
@@ -653,6 +678,11 @@
                 const emptyError = new Error('Kingfall 返回内容为空');
                 console.error('[Kingfall] 实际报错：', emptyError);
                 console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
+                try {
+                    console.error('[Kingfall] requestBody JSON =', JSON.stringify(requestBody, null, 2));
+                } catch (serializationError) {
+                    console.warn('[Kingfall] requestBody JSON 序列化失败。', serializationError);
+                }
                 throw emptyError;
             }
 
@@ -845,7 +875,36 @@
         try {
             let shouldBypassAndSend = true;
             try {
-                await generateKingfallReply(userInput, settings);
+                const maxAttempts = isAutoRetryEnabled(settings) ? getAutoRetryCount(settings) : 1;
+                const retryIntervalMs = getAutoRetryIntervalMs(settings);
+                let attempt = 0;
+                let lastError = null;
+
+                while (attempt < maxAttempts) {
+                    attempt += 1;
+                    try {
+                        if (attempt > 1) {
+                            console.warn(`[Kingfall] 正在进行第 ${attempt}/${maxAttempts} 次重试，间隔 ${retryIntervalMs}ms。`);
+                        }
+                        await generateKingfallReply(userInput, settings);
+                        lastError = null;
+                        break;
+                    } catch (error) {
+                        lastError = error;
+                        if (state.cancelRequested || error?.name === 'AbortError') {
+                            throw error;
+                        }
+                        if (attempt >= maxAttempts) {
+                            showRetryFailureAlert(error, maxAttempts);
+                            throw error;
+                        }
+                        await sleep(retryIntervalMs);
+                    }
+                }
+
+                if (lastError) {
+                    throw lastError;
+                }
             } catch (error) {
                 if (state.cancelRequested || error?.name === 'AbortError') {
                     shouldBypassAndSend = false;

@@ -48,6 +48,9 @@
         return {
             kingfallEnabled: false,
             kingfallContinueSendOnError: true,
+            kingfallAutoRetryEnabled: true,
+            kingfallAutoRetryCount: '3',
+            kingfallAutoRetryIntervalMs: '3000',
             kingfallProcessingPlaceholderText: DEFAULT_PLACEHOLDER_TEXT,
             kingfallSendButtonMedia: null,
         };
@@ -79,6 +82,22 @@
         return settings?.kingfallSendButtonMedia && typeof settings.kingfallSendButtonMedia === 'object'
             ? settings.kingfallSendButtonMedia
             : null;
+    }
+
+    function isAutoRetryEnabled(settings = getSettings()) {
+        return settings?.kingfallAutoRetryEnabled !== false;
+    }
+
+    function getAutoRetryCount(settings = getSettings()) {
+        const value = parseInt(String(settings?.kingfallAutoRetryCount ?? '3').trim(), 10);
+        if (!Number.isFinite(value)) return '3';
+        return String(Math.min(10, Math.max(1, value)));
+    }
+
+    function getAutoRetryIntervalMs(settings = getSettings()) {
+        const value = parseInt(String(settings?.kingfallAutoRetryIntervalMs ?? '3000').trim(), 10);
+        if (!Number.isFinite(value)) return '3000';
+        return String(Math.min(60000, Math.max(0, value)));
     }
 
     function buildAppliedSettingsSnapshot(settings = getSettings()) {
@@ -235,6 +254,9 @@
         const settings = getSettings();
         const enabled = isKingfallEnabled(settings);
         const continueSendOnError = shouldContinueSendOnError(settings);
+        const autoRetryEnabled = isAutoRetryEnabled(settings);
+        const autoRetryCount = getAutoRetryCount(settings);
+        const autoRetryIntervalMs = getAutoRetryIntervalMs(settings);
         const statusText = enabled ? '已开启' : '未开启';
         const hintText = enabled
             ? '当前会在用户点击发送时先执行 Kingfall 处理，再放行原消息。'
@@ -273,6 +295,26 @@
                     </label>
 
                     <div class="network-settings__subsection">
+                        <div class="network-settings__subsection-head">
+                            <div class="network-settings__subsection-title">自动重试</div>
+                            <span class="network-settings__switch">
+                                <input class="network-settings__switch-input" type="checkbox" data-settings-field="kingfallAutoRetryEnabled" ${autoRetryEnabled ? 'checked' : ''}>
+                                <span class="network-settings__switch-slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                        <div class="network-settings__retry-grid ${autoRetryEnabled ? '' : 'is-disabled'}">
+                            <label class="network-settings__field-group">
+                                <span class="network-settings__field-label">重试次数</span>
+                                <input class="xp-input network-settings__text-input" type="number" min="1" max="10" step="1" value="${escapeHtml(autoRetryCount)}" data-settings-field="kingfallAutoRetryCount" ${autoRetryEnabled ? '' : 'disabled'}>
+                            </label>
+                            <label class="network-settings__field-group">
+                                <span class="network-settings__field-label">重试间隔 (ms)</span>
+                                <input class="xp-input network-settings__text-input" type="number" min="0" max="60000" step="100" value="${escapeHtml(autoRetryIntervalMs)}" data-settings-field="kingfallAutoRetryIntervalMs" ${autoRetryEnabled ? '' : 'disabled'}>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="network-settings__subsection">
                         <div class="network-settings__subsection-title">异步时输入框占位文本</div>
                         <label class="network-settings__field-group">
                             <span class="network-settings__field-label">占位文本内容</span>
@@ -298,6 +340,7 @@
                     <div class="network-settings__tips">
                         <div>变量名：<code>Kingfall</code></div>
                         <div>失败策略：${continueSendOnError ? '报错后继续放行发送' : '报错后中止放行发送'}</div>
+                        <div>自动重试：${autoRetryEnabled ? `开启（${escapeHtml(autoRetryCount)}次 / ${escapeHtml(autoRetryIntervalMs)}ms）` : '关闭'}</div>
                         <div>当前状态：${escapeHtml(hintText)}</div>
                     </div>
                 </div>
@@ -375,6 +418,14 @@
             return;
         }
 
+        if (field === 'kingfallAutoRetryEnabled') {
+            setSettings({
+                ...getSettings(),
+                kingfallAutoRetryEnabled: target.checked === true,
+            });
+            return;
+        }
+
         if (field === 'kingfallSendButtonMediaFile') {
             const file = target.files && target.files[0] ? target.files[0] : null;
             handleMediaUpload(file);
@@ -389,12 +440,29 @@
         }
 
         const field = String(target.getAttribute('data-settings-field') || '').trim();
-        if (field !== 'kingfallProcessingPlaceholderText') {
+        if (field === 'kingfallProcessingPlaceholderText') {
+            state.draftPlaceholderText = String(target.value || '').slice(0, 80);
+            syncApplyButtonDisabledState();
             return;
         }
 
-        state.draftPlaceholderText = String(target.value || '').slice(0, 80);
-        syncApplyButtonDisabledState();
+        if (field === 'kingfallAutoRetryCount') {
+            const value = parseInt(String(target.value || '3').trim(), 10);
+            setSettings({
+                ...getSettings(),
+                kingfallAutoRetryCount: String(Number.isFinite(value) ? Math.min(10, Math.max(1, value)) : 3),
+            });
+            return;
+        }
+
+        if (field === 'kingfallAutoRetryIntervalMs') {
+            const value = parseInt(String(target.value || '3000').trim(), 10);
+            setSettings({
+                ...getSettings(),
+                kingfallAutoRetryIntervalMs: String(Number.isFinite(value) ? Math.min(60000, Math.max(0, value)) : 3000),
+            });
+            return;
+        }
     }
 
     function handleClick(event) {
