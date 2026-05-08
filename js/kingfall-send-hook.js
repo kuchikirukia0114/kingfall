@@ -522,6 +522,176 @@
         }
     }
 
+    function tryParseJson(text) {
+        const normalizedText = String(text || '').trim();
+        if (!normalizedText) {
+            return null;
+        }
+        try {
+            return JSON.parse(normalizedText);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function extractTextFromContent(content) {
+        if (typeof content === 'string') {
+            return content;
+        }
+        if (Array.isArray(content)) {
+            return content.map((item) => extractTextFromContent(item)).join('');
+        }
+        if (content && typeof content === 'object') {
+            if (typeof content.text === 'string') {
+                return content.text;
+            }
+            if (typeof content.content === 'string') {
+                return content.content;
+            }
+            if (Array.isArray(content.content)) {
+                return extractTextFromContent(content.content);
+            }
+        }
+        return '';
+    }
+
+    function extractKingfallResponseText(payload) {
+        if (payload == null) {
+            return '';
+        }
+        if (typeof payload === 'string') {
+            return payload.trim();
+        }
+        const choice = Array.isArray(payload.choices) ? payload.choices[0] : null;
+        if (choice && choice.message && choice.message.content !== undefined) {
+            return extractTextFromContent(choice.message.content).trim();
+        }
+        if (choice && choice.delta && choice.delta.content !== undefined) {
+            return extractTextFromContent(choice.delta.content).trim();
+        }
+        if (choice && choice.text !== undefined) {
+            return extractTextFromContent(choice.text).trim();
+        }
+        if (payload.content !== undefined) {
+            return extractTextFromContent(payload.content).trim();
+        }
+        if (payload.text !== undefined) {
+            return extractTextFromContent(payload.text).trim();
+        }
+        return '';
+    }
+
+    function extractKingfallStreamDelta(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return '';
+        }
+        const choice = Array.isArray(payload.choices) ? payload.choices[0] : null;
+        if (choice && choice.delta && choice.delta.content !== undefined) {
+            return extractTextFromContent(choice.delta.content);
+        }
+        if (choice && choice.message && choice.message.content !== undefined) {
+            return extractTextFromContent(choice.message.content);
+        }
+        if (choice && choice.text !== undefined) {
+            return extractTextFromContent(choice.text);
+        }
+        if (payload.content !== undefined) {
+            return extractTextFromContent(payload.content);
+        }
+        if (payload.text !== undefined) {
+            return extractTextFromContent(payload.text);
+        }
+        return '';
+    }
+
+    function extractKingfallEventStreamText(rawText) {
+        const text = String(rawText || '');
+        if (!text.trim()) {
+            return '';
+        }
+
+        let fullText = '';
+        const blocks = text.split(/\r?\n\r?\n/);
+
+        blocks.forEach((eventBlock) => {
+            const dataLines = String(eventBlock || '')
+                .split(/\r?\n/)
+                .map((line) => String(line || '').trim())
+                .filter((line) => line.startsWith('data:'));
+            if (!dataLines.length) {
+                return;
+            }
+
+            const dataText = dataLines.map((line) => line.slice(5).trim()).join('\n').trim();
+            if (!dataText || dataText === '[DONE]') {
+                return;
+            }
+
+            const payload = tryParseJson(dataText);
+            if (!payload) {
+                return;
+            }
+
+            fullText += extractKingfallStreamDelta(payload);
+        });
+
+        return fullText.trim();
+    }
+
+    function createAbortError() {
+        try {
+            return new DOMException('The operation was aborted.', 'AbortError');
+        } catch (error) {
+            const abortError = new Error('The operation was aborted.');
+            abortError.name = 'AbortError';
+            return abortError;
+        }
+    }
+
+    async function readKingfallEventStreamText(response, signal) {
+        if (!response.body || typeof response.body.getReader !== 'function') {
+            throw new Error('当前环境不支持流式读取');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let fullText = '';
+
+        function processEventBlock(eventBlock) {
+            const deltaText = extractKingfallEventStreamText(eventBlock);
+            if (!deltaText) {
+                return;
+            }
+            fullText += deltaText;
+        }
+
+        try {
+            while (true) {
+                if (signal && signal.aborted) {
+                    throw createAbortError();
+                }
+                const result = await reader.read();
+                if (result.done) {
+                    break;
+                }
+                buffer += decoder.decode(result.value || new Uint8Array(), { stream: true });
+                const chunks = buffer.split(/\r?\n\r?\n/);
+                buffer = chunks.pop() || '';
+                chunks.forEach(processEventBlock);
+            }
+            buffer += decoder.decode();
+            if (buffer.trim()) {
+                processEventBlock(buffer);
+            }
+            return fullText.trim();
+        } finally {
+            try {
+                reader.releaseLock();
+            } catch (error) {}
+        }
+    }
+
     async function ensureKingfallVariableReady() {
         const stApi = getSTAPI();
 
@@ -618,12 +788,18 @@
             const deepseekReasoningEffort = String(runtimeSettings?.deepseekReasoningEffort || '').trim();
             const isDeepseekThinkingEnabled = deepseekThinking === 'enabled';
 
+            const runtimePolicy = runtimeSettings?.aiRuntimePolicy && typeof runtimeSettings.aiRuntimePolicy === 'object'
+                ? runtimeSettings.aiRuntimePolicy
+                : {};
+            const requestStreamMode = String(runtimeSettings?.requestStreamMode || 'auto').trim();
+            const shouldRequestStream = requestStreamMode === 'alwaysOn' || runtimePolicy.streamEnabled === true;
+
             const requestBody = {
                 model,
                 messages,
                 temperature: runtimeSettings?.temperature === '' ? undefined : Number(runtimeSettings.temperature),
                 top_p: runtimeSettings?.topP === '' ? undefined : Number(runtimeSettings.topP),
-                stream: false,
+                stream: shouldRequestStream,
             };
 
             if (isDeepseekThinkingEnabled) {
@@ -647,30 +823,50 @@
                 signal: abortController.signal,
             });
 
-            rawResponseText = await response.text().catch(() => '');
+            const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+            let replyText = '';
 
-            if (!response.ok) {
-                const httpError = new Error(`Kingfall 请求失败：${response.status} ${rawResponseText}`.trim());
-                console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
-                console.error('[Kingfall] 实际报错：', httpError);
-                throw httpError;
+            if (shouldRequestStream && response.body && contentType.indexOf('text/event-stream') >= 0) {
+                if (!response.ok) {
+                    rawResponseText = await response.text().catch(() => '');
+                    const httpError = new Error(`Kingfall 请求失败：${response.status} ${rawResponseText}`.trim());
+                    console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
+                    console.error('[Kingfall] 实际报错：', httpError);
+                    throw httpError;
+                }
+
+                replyText = await readKingfallEventStreamText(response, abortController.signal);
+                rawResponseText = replyText;
+            } else {
+                rawResponseText = await response.text().catch(() => '');
+
+                if (!response.ok) {
+                    const httpError = new Error(`Kingfall 请求失败：${response.status} ${rawResponseText}`.trim());
+                    console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
+                    console.error('[Kingfall] 实际报错：', httpError);
+                    throw httpError;
+                }
+
+                let payload = null;
+                try {
+                    payload = rawResponseText ? JSON.parse(rawResponseText) : null;
+                } catch (error) {
+                    const streamFallbackText = shouldRequestStream ? extractKingfallEventStreamText(rawResponseText) : '';
+                    if (streamFallbackText) {
+                        replyText = streamFallbackText;
+                    } else {
+                        console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
+                        console.error('[Kingfall] 实际报错：', error);
+                        throw new Error('Kingfall 返回的内容不是合法 JSON');
+                    }
+                }
+
+                if (!replyText) {
+                    replyText = extractKingfallResponseText(payload);
+                }
             }
 
-            let payload = null;
-            try {
-                payload = rawResponseText ? JSON.parse(rawResponseText) : null;
-            } catch (error) {
-                console.error('[Kingfall] 原生文本：', rawResponseText || '（空）');
-                console.error('[Kingfall] 实际报错：', error);
-                throw new Error('Kingfall 返回的内容不是合法 JSON');
-            }
-
-            const replyText = String(
-                payload?.choices?.[0]?.message?.content
-                || payload?.choices?.[0]?.text
-                || payload?.text
-                || ''
-            ).trim();
+            replyText = String(replyText || '').trim();
 
             console.log('[Kingfall] 原生文本：', replyText || rawResponseText || '（空）');
 
